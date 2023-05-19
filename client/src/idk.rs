@@ -57,8 +57,7 @@ pub fn do_mesh_shit(mesh: &mut Mesh, chunk: &ClientChunk) {
     let mut vertecies: Vec<[f32; 3]> = Vec::new();
     let mut colors: Vec<[f32; 4]> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
-    data.into_iter().enumerate().for_each(|(i, bfd)| {
-        println!("{}", i);
+    data.into_iter().for_each(|bfd| {
         let vertexes = bfd
             .vertecies
             .iter()

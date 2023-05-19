@@ -1,24 +1,24 @@
 use crate::turtle::{self, Inventory, Maybe, TurtleIndexType};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct BlockData {}
+pub struct InfoData {
+    pub index: TurtleIndexType,
+    pub name: String,
+    pub inventory: Inventory,
+    pub fuel: f32,
+    pub max_fuel: i32,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum T2SPackets {
     Moved {
         direction: turtle::MoveDirection,
     },
-    Info {
-        index: TurtleIndexType,
-        name: String,
-        inventory: Inventory,
-        fuel: f32,
-        max_fuel: i32,
-    },
+    Info(InfoData),
     Blocks {
-        up: Maybe<BlockData>,
-        down: Maybe<BlockData>,
-        front: Maybe<BlockData>,
+        up: Maybe<String>,
+        down: Maybe<String>,
+        front: Maybe<String>,
     },
 }
 #[derive(serde::Serialize, serde::Deserialize)]

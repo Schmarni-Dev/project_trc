@@ -9,6 +9,11 @@ pub struct Vec3D<T> {
 }
 
 impl<T> Vec3D<T> {
+    pub fn new() -> Vec3D<T> {
+        Vec3D {
+            inner: HashMap::new(),
+        }
+    }
     pub fn get(&self, pos: &Pos3) -> Option<&T> {
         self.inner.get(pos)
     }

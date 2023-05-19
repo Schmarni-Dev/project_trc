@@ -31,11 +31,12 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let mut chunk_1 = ClientChunk::new(Pos3::ZERO);
-    chunk_1.add_block(Pos3::new(1, 0, 0), "Test");
     chunk_1.add_block(Pos3::new(0, 0, 0), "origin");
+    chunk_1.add_block(Pos3::new(1, 0, 0), "Test");
+    chunk_1.add_block(Pos3::new(15, 0, 0), "sus:among_us");
     let mut chunk_2 = ClientChunk::new(Pos3::new(1, 0, 0));
-    chunk_2.add_block(Pos3::new(1, 1, 0), "minecraft:grass_block");
     chunk_2.add_block(Pos3::new(0, 1, 0), "minecraft:moss_block");
+    chunk_2.add_block(Pos3::new(1, 1, 0), "minecraft:grass_block");
     commands
         .spawn(Camera3dBundle::default())
         .insert(OrbitCameraBundle::new(
@@ -57,7 +58,7 @@ fn setup(
     });
     commands
         .spawn(SceneBundle {
-            scene: asset_server.load("turtle_inactive.gltf#Scene0"),
+            scene: asset_server.load("turtle.gltf#Scene0"),
             transform: Transform::from_translation(Vec3::splat(0.5)),
             ..default()
         })

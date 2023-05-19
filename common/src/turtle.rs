@@ -20,8 +20,6 @@ impl<T> Into<Option<T>> for Maybe<T> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Inventory {
     inv: [Maybe<Item>; 16],
-    // item_left: Maybe<Item>,
-    // item_right: Maybe<Item>,
 }
 
 impl Default for Inventory {
@@ -50,19 +48,13 @@ impl Default for Inventory {
 }
 
 impl IntoIterator for Inventory {
-    type Item = (u8, Item);
+    type Item = (u8, Maybe<Item>);
     type IntoIter = std::vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         let mut data = Vec::new();
-        self.inv
-            .into_iter()
-            .zip(0u8..)
-            .for_each(|(item, index)| match item {
-                Maybe::Some(item) => {
-                    data.push((index, item));
-                }
-                Maybe::None => {}
-            });
+        self.inv.into_iter().zip(0u8..).for_each(|(item, index)| {
+            data.push((index, item));
+        });
         data.into_iter()
     }
 }

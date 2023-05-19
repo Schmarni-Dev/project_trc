@@ -1,6 +1,9 @@
 [workspace]
 
+resolver="2"
 members = [
 "client",
-"common"
+"common",
+"actually_usable_voxel_mesh_gen",
+"server"
 ]

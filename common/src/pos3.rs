@@ -2,9 +2,9 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[derive(Default, serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Hash, Eq)]
 pub struct Pos3 {
-    pub x: i16,
-    pub y: i16,
-    pub z: i16,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
 }
 #[allow(dead_code)]
 impl Pos3 {
@@ -12,13 +12,13 @@ impl Pos3 {
     pub fn zero() -> Pos3 {
         Pos3::new(0, 0, 0)
     }
-    pub fn new(x: i16, y: i16, z: i16) -> Pos3 {
+    pub fn new(x: i32, y: i32, z: i32) -> Pos3 {
         Pos3 { x: x, y: y, z: z }
     }
     pub fn multiply(&self, vector: Pos3) -> Pos3 {
         Pos3::new(self.x * vector.x, self.y * vector.y, self.z * vector.z)
     }
-    pub fn scale(&self, scaler: i16) -> Pos3 {
+    pub fn scale(&self, scaler: i32) -> Pos3 {
         Pos3::new(self.x * scaler, self.y * scaler, self.z * scaler)
     }
 }
@@ -26,6 +26,12 @@ impl Pos3 {
 impl PartialEq for Pos3 {
     fn eq(&self, other: &Self) -> bool {
         self.x == other.x && self.y == other.y && self.z == other.z
+    }
+}
+impl<'a> Add<&'a Pos3> for Pos3 {
+    type Output = Self;
+    fn add(self, other: &'a Self) -> Self {
+        Pos3::new(self.x + other.x, self.y + other.y, self.z + other.z)
     }
 }
 impl Add for Pos3 {
