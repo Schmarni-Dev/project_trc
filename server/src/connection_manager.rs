@@ -51,20 +51,21 @@ pub async fn main(
 
 async fn accept_turtle(
     info_data: InfoData,
-    db: Arc<Mutex<DB>>,
-    server_turtles: Arc<Mutex<Vec<ServerTurtle>>>,
+    db_mutex: Arc<Mutex<DB>>,
+    server_turtles_mutex: Arc<Mutex<Vec<ServerTurtle>>>,
     send: SplitSink<WebSocketStream<TcpStream>, Message>,
     recv: SplitStream<WebSocketStream<TcpStream>>,
     comm_bus: futures_channel::mpsc::UnboundedSender<TurtleCommBus>,
 ) {
-    let mut db = db.lock().await;
-    let mut server_turtles = server_turtles.lock().await;
+    let mut db = db_mutex.lock().await;
+    let mut server_turtles = server_turtles_mutex.lock().await;
     info!("new turtle with index: {}", info_data.index);
     if db.contains_turtle(info_data.index) {
         info!("turtle exists");
         let t = db.get_turtle(info_data.index).unwrap();
-        server_turtles.push(ServerTurtle::new(t.clone_arc(), send, recv, comm_bus));
-        ServerTurtle::on_msg_recived(t.clone_arc(), T2SPackets::Info(info_data));
+        let mut st = ServerTurtle::new(t, send, recv, comm_bus).await;
+        st.on_msg_recived(T2SPackets::Info(info_data)).await;
+        server_turtles.push(st);
     } else {
         info!("turtle dosen't exist ... yet");
 
@@ -74,19 +75,20 @@ async fn accept_turtle(
             inventory,
             fuel,
             max_fuel,
-        } = info_data;
+        } = &info_data;
 
         let inner = Turtle::new(
-            index,
-            name,
-            inventory,
+            index.to_owned(),
+            name.to_owned(),
+            inventory.to_owned(),
             Pos3::ZERO,
             common::turtle::Orientation::North,
-            fuel,
-            max_fuel,
+            fuel.to_owned(),
+            max_fuel.to_owned(),
         );
-        let inner = ArcMutex::new(inner);
-        db.push_turtle(inner.clone_arc()).unwrap();
-        server_turtles.push(ServerTurtle::new(inner.clone_arc(), send, recv, comm_bus));
+        db.push_turtle(inner.clone()).unwrap();
+        let mut st = ServerTurtle::new(inner, send, recv, comm_bus).await;
+        st.on_msg_recived(T2SPackets::Info(info_data)).await;
+        server_turtles.push(st);
     };
 }

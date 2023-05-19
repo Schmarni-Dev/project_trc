@@ -13,7 +13,7 @@ impl TurtleMap {
         TurtleMap(HashMap::new())
     }
     pub fn push(&mut self, turtle: ServerTurtle) -> &mut Self {
-        self.0.insert(turtle., turtle);
+        // self.0.insert(turtle., turtle);
         self
     }
     pub fn get_turtle(&self, id: i32) -> Option<&ServerTurtle> {

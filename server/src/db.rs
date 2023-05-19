@@ -17,7 +17,7 @@ use serde_json::ser::to_string_pretty;
 
 #[derive(Serialize, Deserialize)]
 pub enum DBDataTypes {
-    Turtles(Vec<ArcMutex<Turtle>>),
+    Turtles(HashMap<i32, Turtle>),
     World(World),
 }
 
@@ -78,62 +78,54 @@ impl DB {
         Ok(())
     }
 
-    pub fn get_turtle(&mut self, index: TurtleIndexType) -> anyhow::Result<ArcMutex<Turtle>> {
+    pub fn get_turtle(&mut self, index: TurtleIndexType) -> anyhow::Result<Turtle> {
         self.base()?;
-        self.data
-            .get(&DBTables::Turtles)
-            .iter()
-            .map(|t| {
-                if let DBDataTypes::Turtles(turlte) = t {
-                    return Some(turlte.iter());
-                }
+        match self.data.get(&DBTables::Turtles).iter().find_map(|t| {
+            if let DBDataTypes::Turtles(turlte) = t {
+                turlte.get(&index)
+            } else {
                 None
-            })
-            .flatten()
-            .flatten()
-            .find(|t| t.clone_arc().0.lock().unwrap().index == index)
-            .and_then(|t| Some(Ok(t.clone_arc())))
-            .unwrap_or(Err(anyhow::anyhow!("No Turtle Found")))
+            }
+        }) {
+            None => Err(anyhow::anyhow!("No Turtle Found")),
+            Some(t) => Ok(t.clone()),
+        }
     }
 
-    pub fn push_turtle(&mut self, turtle: ArcMutex<Turtle>) -> anyhow::Result<()> {
+    pub fn push_turtle(&mut self, turtle: Turtle) -> anyhow::Result<()> {
+        // TODO: FIXME: Fix this Shit why am i using get_turtles here?!
         self.base()?;
         let mut t = self.get_turtles()?;
-        t.push(turtle);
+        t.insert(turtle.index, turtle);
         self.push(DBTables::Turtles, DBDataTypes::Turtles(t))?;
         Ok(())
     }
 
-    pub fn get_turtles(&mut self) -> anyhow::Result<Vec<ArcMutex<Turtle>>> {
+    pub fn get_turtles(&mut self) -> anyhow::Result<HashMap<i32, Turtle>> {
         self.base()?;
         self.data.entry(DBTables::Turtles).or_insert_with(|| {
             warn!("!!!Turtles Table dosent exist!!!\nreplacing with empty vec");
-            DBDataTypes::Turtles(vec![])
+            DBDataTypes::Turtles(HashMap::new())
         });
         let test = match self.data.get(&DBTables::Turtles) {
-            Some(DBDataTypes::Turtles(turtle)) => {
-                turtle.into_iter().map(|v| v.clone_arc()).collect()
-            }
+            Some(DBDataTypes::Turtles(turtle)) => turtle
+                .into_iter()
+                .map(|(i, v)| (i.to_owned(), v.clone()))
+                .collect(),
             _ => {
                 return Err(anyhow::anyhow!("no turltes. lol it's 03:35 help"));
             }
         };
         Ok(test)
+        // todo!();
     }
 
     pub fn contains_turtle(&self, index: TurtleIndexType) -> bool {
-        self.data
-            .get(&DBTables::Turtles)
-            .iter()
-            .map(|t| {
-                if let DBDataTypes::Turtles(turlte) = t {
-                    return Some(turlte.iter());
-                }
-                None
-            })
-            .flatten()
-            .flatten()
-            .find(|t| t.clone_arc().0.lock().unwrap().index == index)
-            .is_some()
+        self.data.get(&DBTables::Turtles).iter().any(|t| {
+            if let DBDataTypes::Turtles(turlte) = t {
+                return turlte.contains_key(&index);
+            };
+            false
+        })
     }
 }
