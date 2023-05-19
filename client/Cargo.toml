@@ -6,3 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bevy = "0.10.1"
+common = { path = "../common" }
+actually_usable_voxel_mesh_gen = { path = "../actually_usable_voxel_mesh_gen" }
+smooth-bevy-cameras = "0.8.0"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
