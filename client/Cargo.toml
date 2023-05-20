@@ -10,6 +10,10 @@ bevy = "0.10.1"
 common = { path = "../common" }
 actually_usable_voxel_mesh_gen = { path = "../actually_usable_voxel_mesh_gen" }
 smooth-bevy-cameras = "0.8.0"
+tungstenite = "0.19.0"
+url = "2.3.1"
+crossbeam = { version = "0.8.2", features = ["crossbeam-channel"] }
+serde_json = "1.0.96"
 
 [profile.dev]
 opt-level = 1

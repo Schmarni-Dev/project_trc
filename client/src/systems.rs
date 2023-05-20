@@ -20,3 +20,5 @@ pub fn lerp_pos_system(time: Res<Time>, mut query: Query<(&mut Transform, &mut L
             .lerp(lerp_pos.end_pos, lerp_pos.current_time);
     }
 }
+
+pub fn move_turtle(mut query: Query<(&mut Transform, &mut LerpPos)>) {}

@@ -22,6 +22,11 @@ impl LerpPos {
             current_time: 0.,
         }
     }
+    pub fn lerp_to(&mut self, end_pos: Vec3) {
+        self.start_pos = self.end_pos;
+        self.end_pos = end_pos;
+        self.current_time = 0.;
+    }
 }
 
 #[derive(Component)]
