@@ -1,11 +1,3 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{Read, Write},
-    path::{Path, PathBuf},
-};
-
-use crate::data_types::arc_mutex::ArcMutex;
 use anyhow::Ok;
 use chrono::{NaiveTime, Utc};
 use common::turtle::{Turtle, TurtleIndexType};
@@ -14,6 +6,12 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string_pretty;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
 
 #[derive(Serialize, Deserialize)]
 pub enum DBDataTypes {
@@ -53,33 +51,31 @@ impl DB {
         })
     }
 
-    fn base(&mut self) -> anyhow::Result<()> {
-        info!(
-            "time: {}",
-            (Utc::now().time() - self.last_save_time_stamp).num_seconds()
-        );
-        if (Utc::now().time() - self.last_save_time_stamp).num_seconds() >= 120 {
-            self.last_save_time_stamp = Utc::now().time();
-            self.save()?
-        }
-        Ok(())
-    }
+    // fn base(&mut self) -> anyhow::Result<()> {
+    //     info!(
+    //         "time: {}",
+    //         (Utc::now().time() - self.last_save_time_stamp).num_seconds()
+    //     );
+    //     if (Utc::now().time() - self.last_save_time_stamp).num_seconds() >= 120 {
+    //         self.last_save_time_stamp = Utc::now().time();
+    //         self.save()?
+    //     }
+    //     Ok(())
+    // }
 
-    pub fn push(&mut self, table: DBTables, data: DBDataTypes) -> anyhow::Result<()> {
-        self.base()?;
+    pub fn push(&mut self, table: DBTables, data: DBDataTypes) {
         self.data.insert(table, data);
-        Ok(())
     }
 
     pub fn save(&mut self) -> anyhow::Result<()> {
         info!("saving DB");
         let mut f = File::create(&self.file_path)?;
         f.write_all(to_string_pretty(&self.data)?.as_bytes())?;
+        info!("saved DB");
         Ok(())
     }
 
     pub fn get_turtle(&mut self, index: TurtleIndexType) -> anyhow::Result<Turtle> {
-        self.base()?;
         match self.data.get(&DBTables::Turtles).iter().find_map(|t| {
             if let DBDataTypes::Turtles(turlte) = t {
                 turlte.get(&index)
@@ -93,30 +89,34 @@ impl DB {
     }
 
     pub fn push_turtle(&mut self, turtle: Turtle) -> anyhow::Result<()> {
-        // TODO: FIXME: Fix this Shit why am i using get_turtles here?!
-        self.base()?;
-        let mut t = self.get_turtles()?;
+        // TODO: FIXME: Fix this Shit why tf am i using get_turtles here?!
+
+        let mut t = self.get_turtle_map()?;
         t.insert(turtle.index, turtle);
-        self.push(DBTables::Turtles, DBDataTypes::Turtles(t))?;
+        self.push(DBTables::Turtles, DBDataTypes::Turtles(t));
         Ok(())
     }
 
-    pub fn get_turtles(&mut self) -> anyhow::Result<HashMap<i32, Turtle>> {
-        self.base()?;
+    fn get_turtle_map(&mut self) -> anyhow::Result<HashMap<i32, Turtle>> {
         self.data.entry(DBTables::Turtles).or_insert_with(|| {
             warn!("!!!Turtles Table dosent exist!!!\nreplacing with empty vec");
             DBDataTypes::Turtles(HashMap::new())
         });
-        let test = match self.data.get(&DBTables::Turtles) {
-            Some(DBDataTypes::Turtles(turtle)) => turtle
+        match self.data.get(&DBTables::Turtles) {
+            Some(DBDataTypes::Turtles(turtle)) => Ok(turtle
                 .into_iter()
                 .map(|(i, v)| (i.to_owned(), v.clone()))
-                .collect(),
-            _ => {
-                return Err(anyhow::anyhow!("no turltes. lol it's 03:35 help"));
-            }
-        };
-        Ok(test)
+                .collect()),
+            _ => Err(anyhow::anyhow!("no turltes. lol it's 03:35 help")),
+        }
+    }
+
+    pub fn get_turtles(&mut self) -> anyhow::Result<Vec<Turtle>> {
+        Ok(self
+            .get_turtle_map()?
+            .values()
+            .map(|t| t.to_owned())
+            .collect())
         // todo!();
     }
 

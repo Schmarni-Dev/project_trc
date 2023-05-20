@@ -1,76 +1,87 @@
-use bevy::prelude::*;
-use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets};
-use crossbeam::channel::*;
-use futures_util::{SinkExt, StreamExt, TryStreamExt};
-use serde_json::{from_str, to_string_pretty};
+use bevy::{log::prelude::*, prelude::*};
+use common::client_packets::{C2SPackets, S2CPackets};
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use futures_util::{SinkExt, StreamExt};
+use serde_json::{from_str, to_string};
 use tokio::runtime::Runtime;
 use tokio_tungstenite::connect_async;
-use tungstenite::*;
-use url::Url;
-#[derive(Resource, Deref, DerefMut)]
-/// DON'T USE THIS USE THE EVENTS!
-pub struct WsSendChannel(Sender<C2SPackets>);
-#[derive(Resource, Deref, DerefMut)]
-/// DON'T USE THIS USE THE EVENTS!
-pub struct WsRecvChannel(Receiver<S2CPackets>);
+use tungstenite::Message;
 
-pub enum WsEvents {
-    TurtleMoved(MovedTurtleData),
+pub struct WS;
+
+impl Plugin for WS {
+    fn build(&self, app: &mut App) {
+        let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
+        // add things to your app here
+        app.add_system(run_ws);
+        app.insert_resource(ws_communitcator);
+        app.add_event::<C2SPackets>();
+        app.add_event::<S2CPackets>();
+    }
 }
 
-pub fn setup_ws(mut commands: Commands, mut event: EventWriter<C2SPackets>) {
-    let (ws_recv_tx, ws_recv_rx) = unbounded::<S2CPackets>();
-    let (ws_send_tx, ws_send_rx) = unbounded::<C2SPackets>();
-    commands.insert_resource(WsSendChannel(ws_send_tx));
-    commands.insert_resource(WsRecvChannel(ws_recv_rx));
-    let rt = Runtime::new().unwrap();
+#[derive(Resource)]
+pub struct WsCommunicator {
+    to_server: Sender<C2SPackets>,
+    from_server: Receiver<S2CPackets>,
+    _runtime: Runtime,
+}
+impl WsCommunicator {
+    pub fn init(ip: &str) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
 
-    // Spawn the root task
-    rt.block_on(async {
-        tokio::spawn(async move {
-            let (mut socket, response) = connect_async(Url::parse("ws://localhost:9001").unwrap())
-                .await
-                .expect("Can't connect");
-
-            println!("Connected to the server");
-            println!("Response HTTP code: {}", response.status());
-            println!("Response contains the following headers:");
-            for (ref header, _value) in response.headers() {
-                println!("* {}", header);
-            }
-            let (mut write, mut read) = socket.split();
-            tokio::spawn(async move {
-                while let Ok(Some(Message::Text(msg))) = read.try_next().await {
-                    println!("Received: {}", msg);
-                    if let Ok(packet) = from_str::<S2CPackets>(&msg) {
-                        _ = ws_recv_tx.send(packet);
-                    };
-                }
-            });
-            while let Ok(msg) = ws_send_rx.recv() {
-                println!("wsSendRecived!");
-                _ = write
-                    .send(Message::Text(to_string_pretty(&msg).unwrap()))
-                    .await;
-            }
+        let (mut ws_tx, mut ws_rx) = rt.block_on(async move {
+            info!("test: {}", ip);
+            let (ws_shit_idc, _) = connect_async(ip).await.unwrap();
+            info!("Websocket Connection Established.^^");
+            ws_shit_idc.split()
         });
-        println!("test async");
-    });
-    event.send(C2SPackets::RequestTurtles);
-}
 
-pub fn read_ws_messages(receiver: Res<WsRecvChannel>, mut events: EventWriter<WsEvents>) {
-    for from_stream in receiver.try_iter() {
-        match from_stream {
-            S2CPackets::MovedTurtle(data) => events.send(WsEvents::TurtleMoved(data)),
-            S2CPackets::RequestedTurtles(t) => {}
+        let (s2c_tx, s2c_rx) = unbounded::<S2CPackets>();
+        let (c2s_tx, c2s_rx) = unbounded::<C2SPackets>();
+
+        // rt.spawn(async move {
+        //     println!("WS MSG: {}", "txt2");
+        //     while let Some(Ok(Message::Text(txt))) = ws_rx.next().await {
+        //         println!("WS MSG: {}", txt);
+        //         if let Ok(msg) = from_str::<S2CPackets>(&txt) {
+        //             _ = s2c_tx.send(msg);
+        //         }
+        //     }
+        //     println!("WS MSG: {}", "txt");
+        // });
+        // rt.spawn(async move {
+        //     _ = ws_tx
+        //         .send(Message::Text(
+        //             to_string(&C2SPackets::RequestTurtles).unwrap(),
+        //         ))
+        //         .await
+        //         .unwrap();
+        //     while let Some(w) = c2s_rx.iter().next() {
+        //         _ = ws_tx.send(Message::Text(to_string(&w).unwrap())).await;
+        //     }
+        // });
+
+        Self {
+            from_server: s2c_rx,
+            to_server: c2s_tx,
+            _runtime: rt,
         }
     }
 }
-pub fn write_ws_messages(sender: Res<WsSendChannel>, mut events: EventReader<C2SPackets>) {
-    for e in events.iter() {
-        println!("test");
-        let e = e.to_owned();
-        _ = sender.send(e);
+
+pub fn run_ws(
+    socket: Res<WsCommunicator>,
+    mut read: EventReader<C2SPackets>,
+    mut write: EventWriter<S2CPackets>,
+) {
+    for i in socket.from_server.try_iter() {
+        write.send(i)
+    }
+    for i in read.iter() {
+        _ = socket.to_server.try_send(i.to_owned());
     }
 }

@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
 use super::server_turtle::ServerTurtle;
-use common::client_packets::S2CPackets;
-use log::info;
 
 pub struct DosentExist;
 
@@ -13,10 +11,13 @@ impl TurtleMap {
         TurtleMap(HashMap::new())
     }
     pub fn push(&mut self, turtle: ServerTurtle) -> &mut Self {
-        // self.0.insert(turtle., turtle);
+        self.0.insert(turtle.index, turtle);
         self
     }
     pub fn get_turtle(&self, id: i32) -> Option<&ServerTurtle> {
         self.0.get(&id)
+    }
+    pub fn get_turtle_mut(&mut self, id: i32) -> Option<&mut ServerTurtle> {
+        self.0.get_mut(&id)
     }
 }

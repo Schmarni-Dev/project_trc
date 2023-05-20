@@ -1,15 +1,19 @@
 use std::{path::Path, sync::Arc};
 
-use crate::data_types::arc_mutex::ArcMutex;
 use crate::data_types::client_map;
+
 use crate::data_types::server_client::ServerClient;
 use crate::data_types::server_turtle::{ServerTurtle, WsRecv, WsSend};
+use crate::data_types::turtle_map::TurtleMap;
 use crate::db::DB;
+use chrono::Duration;
+use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets};
 use common::turtle::Turtle;
 use common::turtle_packets::{InfoData, T2SPackets};
 use common::Pos3;
 use futures_channel::mpsc::unbounded;
 use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::{pin_mut, StreamExt};
 use log::info;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -23,13 +27,98 @@ pub enum TurtleCommBus {
 
 pub async fn main(
     mut new_turte_connected: UnboundedReceiver<(InfoData, WsSend, WsRecv)>,
+    mut new_client_connected: UnboundedReceiver<(WsSend, WsRecv)>,
 ) -> anyhow::Result<()> {
     let db = Arc::new(Mutex::new(DB::new(Path::new("./db.json"))?));
-    let server_turtles = Arc::new(Mutex::new(Vec::<ServerTurtle>::new()));
+    let server_turtles = Arc::new(Mutex::new(TurtleMap::new()));
     let server_clients = Arc::new(Mutex::new(client_map::ClientMap::new()));
-    let (turtle_comms_tx, turtle_comms_rx) = unbounded::<TurtleCommBus>();
+    let (turtle_comms_tx, mut turtle_comms_rx) = unbounded::<TurtleCommBus>();
+    let (client_comms_tx, mut client_comms_rx) = unbounded::<(i32, C2SPackets)>();
+    pin_mut!(turtle_comms_tx, client_comms_tx);
+
+    // let local_server_clients = server_clients.clone();
+    // let mut w = tokio::time::interval(Duration::seconds(5).to_std().unwrap());
+    // tokio::spawn(async move {
+    //     loop {
+    //         w.tick().await;
+    //         local_server_clients
+    //             .lock()
+    //             .await
+    //             .broadcast(S2CPackets::RequestedTurtles(vec![]))
+    //             .await;
+    //     }
+    // });
+
+    let local_db = db.clone();
+    let local_server_turtles = server_turtles.clone();
+    let local_server_clients = server_clients.clone();
+    tokio::spawn(async move {
+        while let Some(w) = client_comms_rx.next().await {
+            let (client_index, packet) = w;
+            match packet {
+                C2SPackets::MoveTurtle { index, direction } => {
+                    for t in local_server_turtles
+                        .lock()
+                        .await
+                        .get_turtle_mut(index)
+                        .iter()
+                    {
+                        t.move_(direction).await;
+                    }
+                }
+                C2SPackets::RequestTurtles => {
+                    info!("This Bitch: {:?}", "");
+                    local_server_clients
+                        .lock()
+                        .await
+                        .send_to(
+                            S2CPackets::RequestedTurtles(
+                                local_db.lock().await.get_turtles().unwrap(),
+                            ),
+                            &client_index,
+                        )
+                        .await;
+                }
+            }
+        }
+    });
+
+    let local_db = db.clone();
+    let local_server_clients = server_clients.clone();
+    tokio::spawn(async move {
+        while let Some(w) = turtle_comms_rx.next().await {
+            match w {
+                TurtleCommBus::Moved(index) => {
+                    let t = local_db.lock().await.get_turtle(index).unwrap();
+                    let msg = MovedTurtleData {
+                        index,
+                        new_orientation: t.orientation,
+                        new_pos: t.position,
+                    };
+                    local_server_clients
+                        .lock()
+                        .await
+                        .broadcast(S2CPackets::MovedTurtle(msg))
+                        .await;
+                }
+            }
+        }
+    });
+
+    let client_comms_tx = client_comms_tx.clone();
+    tokio::spawn(async move {
+        while let Some((send, recv)) = new_client_connected.recv().await {
+            info!("HUH?!");
+            server_clients.lock().await.push(ServerClient::new(
+                recv,
+                send,
+                client_comms_tx.clone(),
+            ));
+        }
+    });
 
     //Wait for Turtles to connect
+    let turtle_comms_tx = turtle_comms_tx.clone();
     let local_db = db.clone();
     let local_server_turtles = server_turtles.clone();
     tokio::spawn(async move {
@@ -46,13 +135,29 @@ pub async fn main(
         }
     });
 
-    anyhow::Ok(())
+    let mut db_save_to_disk = tokio::time::interval(Duration::minutes(5).to_std().unwrap());
+    db_save_to_disk.tick().await;
+    let local_db = db.clone();
+    tokio::spawn(async move {
+        loop {
+            db_save_to_disk.tick().await;
+            local_db
+                .lock()
+                .await
+                .save()
+                .expect("!!!DB FALIED TO SAVE!!!");
+        }
+    });
+
+    loop {}
+
+    // anyhow::Ok(())
 }
 
 async fn accept_turtle(
     info_data: InfoData,
     db_mutex: Arc<Mutex<DB>>,
-    server_turtles_mutex: Arc<Mutex<Vec<ServerTurtle>>>,
+    server_turtles_mutex: Arc<Mutex<TurtleMap>>,
     send: SplitSink<WebSocketStream<TcpStream>, Message>,
     recv: SplitStream<WebSocketStream<TcpStream>>,
     comm_bus: futures_channel::mpsc::UnboundedSender<TurtleCommBus>,
@@ -63,6 +168,7 @@ async fn accept_turtle(
     if db.contains_turtle(info_data.index) {
         info!("turtle exists");
         let t = db.get_turtle(info_data.index).unwrap();
+        drop(db);
         let mut st = ServerTurtle::new(t, send, recv, comm_bus).await;
         st.on_msg_recived(T2SPackets::Info(info_data)).await;
         server_turtles.push(st);
@@ -87,6 +193,7 @@ async fn accept_turtle(
             max_fuel.to_owned(),
         );
         db.push_turtle(inner.clone()).unwrap();
+        drop(db);
         let mut st = ServerTurtle::new(inner, send, recv, comm_bus).await;
         st.on_msg_recived(T2SPackets::Info(info_data)).await;
         server_turtles.push(st);

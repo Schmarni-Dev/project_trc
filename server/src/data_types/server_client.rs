@@ -3,6 +3,7 @@ use common::client_packets::{C2SPackets, S2CPackets};
 use futures::StreamExt;
 use futures_channel::mpsc::UnboundedSender;
 use futures_util::SinkExt;
+use log::info;
 use rand::prelude::*;
 
 // use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -44,10 +45,9 @@ impl ServerClient {
                 if let Message::Text(msg) = msg {
                     if let Ok(msg) = serde_json::from_str::<C2SPackets>(&msg) {
                         match msg {
-                            C2SPackets::MoveTurtle { .. } => {
-                                let _ = send.send((index, msg)).await;
+                            packet => {
+                                send.send((index, packet)).await.unwrap();
                             }
-                            _ => {}
                         }
                     }
                 };

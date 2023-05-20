@@ -10,11 +10,14 @@ pub enum C2SPackets {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct MovedTurtleData {
+    pub index: i32,
+    pub new_orientation: turtle::Orientation,
+    pub new_pos: Pos3,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum S2CPackets {
-    MovedTurtle {
-        index: i32,
-        new_orientation: turtle::Orientation,
-        new_pos: Pos3,
-    },
+    MovedTurtle(MovedTurtleData),
     RequestedTurtles(Vec<turtle::Turtle>),
 }

@@ -1,3 +1,5 @@
+use std::default;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
@@ -68,7 +70,7 @@ pub struct Item {
 pub type TurtleIndexType = i32;
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Turtle {
     pub index: TurtleIndexType,
     pub name: String,
@@ -163,8 +165,9 @@ pub enum MoveDirection {
     Left,
     Right,
 }
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
 pub enum Orientation {
+    #[default]
     /// Towards -Z
     North,
     /// Towards +X

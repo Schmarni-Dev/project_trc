@@ -1,7 +1,7 @@
 {
   "Turtles": {
-    "Turtles": [
-      {
+    "Turtles": {
+      "0": {
         "index": 0,
         "name": "",
         "inventory": {
@@ -33,6 +33,6 @@
         "fuel": 5120.0,
         "max_fuel": 100000
       }
-    ]
+    }
   }
 }

@@ -1,13 +1,10 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
 use common::turtle_packets::{InfoData, S2TPackets, T2SPackets};
 use futures::{SinkExt, StreamExt};
 use log::info;
 use serde_json::{from_str, to_string_pretty};
-use tokio::{
-    net::TcpStream,
-    sync::{mpsc::UnboundedSender, Mutex},
-};
+use tokio::{net::TcpStream, sync::mpsc::UnboundedSender};
 use tungstenite::Message;
 
 use crate::data_types::server_turtle::{WsRecv, WsSend};
@@ -15,7 +12,7 @@ use crate::data_types::server_turtle::{WsRecv, WsSend};
 pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
-    turtle_connected_send: Arc<Mutex<UnboundedSender<(InfoData, WsSend, WsRecv)>>>,
+    turtle_connected_send: UnboundedSender<(InfoData, WsSend, WsRecv)>,
 ) {
     info!("Incoming TCP connection from: {}", addr);
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -32,8 +29,9 @@ pub async fn handle_connection(
     while let Some(Ok(msg)) = incoming.next().await {
         if let Message::Text(msg) = msg {
             if let T2SPackets::Info(data) = from_str::<T2SPackets>(&msg).unwrap() {
-                let send = turtle_connected_send.lock().await;
-                send.send((data, outgoing, incoming)).unwrap();
+                turtle_connected_send
+                    .send((data, outgoing, incoming))
+                    .unwrap();
                 break;
             }
         };

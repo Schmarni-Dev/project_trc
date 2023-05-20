@@ -1,37 +1,32 @@
-use std::{
-    ops::{Deref, DerefMut},
-    sync::{Arc, Mutex},
-};
+use std::ops::{Deref, DerefMut};
 
 use common::{
     turtle::{MoveDirection, TurnDir, Turtle},
-    turtle_packets::{InfoData, T2SPackets},
+    turtle_packets::{InfoData, S2TPackets, T2SPackets},
     Pos3,
 };
 
 use futures_channel::mpsc::UnboundedSender;
 use futures_util::{
-    future,
     stream::{SplitSink, SplitStream},
-    TryStreamExt,
+    SinkExt, StreamExt,
 };
 #[allow(unused_imports)]
 use log::info;
-use serde_json::from_str;
+use serde_json::{from_str, to_string_pretty};
 use tokio::net::TcpStream;
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::Message;
 
 use crate::connection_manager::TurtleCommBus;
-
-use super::arc_mutex::ArcMutex;
-
 pub type WsSend = SplitSink<WebSocketStream<TcpStream>, Message>;
 pub type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
 
 pub struct ServerTurtle {
     inner: Turtle,
+    #[allow(dead_code)]
     send: WsSend,
+    comm_bus: UnboundedSender<TurtleCommBus>,
 }
 impl Deref for ServerTurtle {
     type Target = Turtle;
@@ -54,8 +49,12 @@ impl ServerTurtle {
         recv: WsRecv,
         comm_bus: UnboundedSender<TurtleCommBus>,
     ) -> ServerTurtle {
-        let mut turtle = ServerTurtle { inner, send };
-        turtle.init(recv);
+        let mut turtle = ServerTurtle {
+            inner,
+            send,
+            comm_bus,
+        };
+        turtle.init(recv).await;
         turtle
     }
 
@@ -75,8 +74,6 @@ impl ServerTurtle {
                 info!("Info Recived ^^7")
             }
             T2SPackets::Moved { direction } => {
-                //TODO: Somehow Notify client of Change
-
                 match direction {
                     MoveDirection::Forward => {
                         let forward = self.inner.get_forward_vec();
@@ -93,6 +90,7 @@ impl ServerTurtle {
                         self.inner.orientation = self.inner.turn(TurnDir::Right)
                     }
                 }
+                _ = self.comm_bus.send(TurtleCommBus::Moved(self.index)).await;
             }
             T2SPackets::Blocks { up, down, front } => {
                 info!("up: {:?}", up);
@@ -101,18 +99,22 @@ impl ServerTurtle {
             }
         }
     }
+    async fn send_ws(&mut self, packet: S2TPackets) {
+        _ = self
+            .send
+            .send(Message::Text(to_string_pretty(&packet).unwrap()))
+            .await;
+    }
 
-    async fn init(&mut self, recv: WsRecv) {
-        // V Actually yes Just the logging was FUCKED V
-        // info!("am i ever inniting? .. no");
+    pub async fn move_(&self, dir: MoveDirection) {}
 
-        recv.try_for_each(|msg| {
+    async fn init(&mut self, mut recv: WsRecv) {
+        while let Some(Ok(msg)) = recv.next().await {
             if let Message::Text(msg) = msg {
                 info!("recived msg: {}", msg);
-                self.on_msg_recived(from_str::<T2SPackets>(&msg).unwrap());
+                self.on_msg_recived(from_str::<T2SPackets>(&msg).unwrap())
+                    .await;
             }
-            future::ok(())
-        })
-        .await;
+        }
     }
 }

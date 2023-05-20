@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 use backend::*;
-use common::{turtle::TurtleIndexType, turtle_packets::InfoData};
+use common::turtle_packets::InfoData;
 
 use futures_util::{
     pin_mut,
@@ -31,9 +29,10 @@ async fn main() -> Result<()> {
 
     let (turtle_connected_tx, turtle_connected_recv) =
         unbounded_channel::<(InfoData, WsSend, WsRecv)>();
-    // FIXME: Arc Mutex Channel? WTF!!!!
-    let turtle_connected_send = Arc::new(tokio::sync::Mutex::new(turtle_connected_tx));
-    pin_mut!(turtle_connected_send);
+    let (client_connected_tx, client_connected_recv) = unbounded_channel::<(WsSend, WsRecv)>();
+
+    pin_mut!(turtle_connected_tx);
+    pin_mut!(client_connected_tx);
 
     // Create the event loop and TCP listener we'll accept connections on.
     let client_listener = TcpListener::bind(&client_addr)
@@ -47,22 +46,31 @@ async fn main() -> Result<()> {
     info!("Trutle Socket Listening on: {}", turtle_addr);
 
     // Let's spawn the handling of each connection in a separate task.
-    tokio::spawn(async {
+    let client_connected_tx = client_connected_tx.clone();
+    tokio::spawn(async move {
+        info!("EXPLAIN!!!");
         let listener = client_listener;
         while let Ok((stream, addr)) = listener.accept().await {
-            tokio::spawn(backend::handle_clients::handle_connection(stream, addr));
+            info!("awdasd?!?!??!?!?!?!?");
+            tokio::spawn(backend::handle_clients::handle_connection(
+                stream,
+                addr,
+                client_connected_tx.clone(),
+            ));
         }
     });
 
-    tokio::spawn(connection_manager::main(turtle_connected_recv));
+    tokio::spawn(connection_manager::main(
+        turtle_connected_recv,
+        client_connected_recv,
+    ));
 
     while let Ok((stream, addr)) = turtle_listener.accept().await {
         // info!("dafuq?!");
-        let turtle_connected_send = turtle_connected_send.clone();
         tokio::spawn(backend::handle_turtles::handle_connection(
             stream,
             addr,
-            turtle_connected_send,
+            turtle_connected_tx.clone(),
         ));
     }
 
