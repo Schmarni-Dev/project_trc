@@ -8,13 +8,14 @@ use client::{
     ws::WsEvents,
     *,
 };
-use common::{turtle::Turtle, Pos3};
+use common::{client_packets::C2SPackets, turtle::Turtle, Pos3};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
 use std::f32::consts::FRAC_PI_4;
 
+// #[tokio::main]
 fn main() {
     App::new()
         .insert_resource(AmbientLight {
@@ -28,9 +29,11 @@ fn main() {
         .add_plugin(Systems)
         .add_event::<TurtleSpawnData>()
         .add_event::<WsEvents>()
+        .add_event::<C2SPackets>()
         .add_startup_system(setup)
         .add_startup_system(ws::setup_ws)
         .add_system(ws::read_ws_messages)
+        .add_system(ws::write_ws_messages)
         .add_system(turtle_spawner)
         .add_system(animate_light_direction)
         .add_system(input::orbit_input_map)
