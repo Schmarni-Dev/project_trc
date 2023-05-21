@@ -18,6 +18,5 @@ pub async fn handle_connection(
         .expect("Error during the websocket handshake occurred");
     info!("WebSocket connection established: {}", addr);
 
-    // let (outgoing, incoming) = ;
     _ = client_connected.send(ws_stream.split());
 }

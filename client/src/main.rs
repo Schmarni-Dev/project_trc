@@ -7,7 +7,10 @@ use client::{
     ws::WS,
     *,
 };
-use common::{client_packets::C2SPackets, turtle::Turtle, Pos3};
+use common::{
+    client_packets::{C2SPackets, S2CPackets},
+    Pos3,
+};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
@@ -28,15 +31,31 @@ fn main() {
         .add_plugin(WS)
         .add_event::<TurtleSpawnData>()
         .add_startup_system(setup)
+        .add_system(setup_turtles)
         .add_system(turtle_spawner)
         .add_system(animate_light_direction)
         .add_system(input::orbit_input_map)
-        // .add_systems(, start)
         .run();
 }
 
-fn start(mut ws_writer: EventWriter<C2SPackets>) {
-    ws_writer.send(C2SPackets::RequestTurtles);
+fn setup_turtles(
+    mut spwan_turtle: EventWriter<TurtleSpawnData>,
+    mut ws_reader: EventReader<S2CPackets>,
+) {
+    for p in ws_reader.iter() {
+        info!("test");
+        match p.to_owned() {
+            S2CPackets::RequestedTurtles(ts) => {
+                ts.into_iter().for_each(|t| {
+                    spwan_turtle.send(TurtleSpawnData {
+                        turtle: t,
+                        active: false,
+                    });
+                });
+            }
+            _ => {}
+        }
+    }
 }
 
 fn setup(
@@ -44,7 +63,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut spwan_turtle: EventWriter<TurtleSpawnData>,
+    mut ws_writer: EventWriter<C2SPackets>,
 ) {
     let mut chunk_1 = ClientChunk::new(Pos3::ZERO);
     chunk_1.add_block(Pos3::new(0, 0, 0), "origin");
@@ -77,21 +96,7 @@ fn setup(
         inactive_turtle: asset_server.load("turtle_inactive.gltf#Scene0"),
     });
 
-    spwan_turtle.send(TurtleSpawnData {
-        turtle: Turtle {
-            position: Pos3::new(0, 1, 0),
-            ..Default::default()
-        },
-        active: true,
-    });
-    spwan_turtle.send(TurtleSpawnData {
-        turtle: Turtle {
-            index: 1,
-            position: Pos3::new(0, 2, 0),
-            ..Default::default()
-        },
-        active: false,
-    });
+    ws_writer.send(C2SPackets::RequestTurtles);
 
     let chunk_mat = materials.add(Color::rgb(1., 1., 1.).into());
     commands.spawn(ChunkBundle::new(chunk_1, &mut meshes, chunk_mat.clone()));

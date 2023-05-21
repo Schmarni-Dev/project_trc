@@ -18,10 +18,11 @@ use tungstenite::Message;
 type WsSend = SplitSink<WebSocketStream<TcpStream>, Message>;
 type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
 
+// amount of times i dead locked myself in TOKIOOOOO: 1
 #[tokio::main]
 async fn main() -> Result<()> {
     // minutes wasted on trying to find an issue the it was just the logger being wongly configured: 10
-    let _ = pretty_env_logger::formatted_builder()
+    let _ = pretty_env_logger::formatted_timed_builder()
         .filter(None, log::LevelFilter::Debug)
         .init();
     let client_addr = "0.0.0.0:9001";
@@ -48,10 +49,11 @@ async fn main() -> Result<()> {
     // Let's spawn the handling of each connection in a separate task.
     let client_connected_tx = client_connected_tx.clone();
     tokio::spawn(async move {
-        info!("EXPLAIN!!!");
+        // info!("EXPLAIN!!!");
         let listener = client_listener;
+        // This Is the Broken Listener!
         while let Ok((stream, addr)) = listener.accept().await {
-            info!("awdasd?!?!??!?!?!?!?");
+            // info!("awdasd?!?!??!?!?!?!?");
             tokio::spawn(backend::handle_clients::handle_connection(
                 stream,
                 addr,
@@ -73,6 +75,8 @@ async fn main() -> Result<()> {
             turtle_connected_tx.clone(),
         ));
     }
+
+    loop {}
 
     Ok(())
 }

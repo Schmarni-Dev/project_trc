@@ -14,6 +14,10 @@ pub async fn handle_connection(
     addr: SocketAddr,
     turtle_connected_send: UnboundedSender<(InfoData, WsSend, WsRecv)>,
 ) {
+    if addr.to_string().contains("35.177.97.185") {
+        drop(raw_stream);
+        return;
+    }
     info!("Incoming TCP connection from: {}", addr);
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
         .await

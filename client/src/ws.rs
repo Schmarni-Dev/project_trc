@@ -1,7 +1,7 @@
-use bevy::{app::AppExit, log::prelude::*, prelude::*};
+use bevy::{log::prelude::*, prelude::*};
 use common::client_packets::{C2SPackets, S2CPackets};
 use crossbeam::channel::{unbounded, Receiver, Sender};
-use futures_util::{pin_mut, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use serde_json::{from_str, to_string};
 use tokio::runtime::Runtime;
 use tokio_tungstenite::connect_async;
@@ -13,9 +13,11 @@ impl Plugin for WS {
     fn build(&self, app: &mut App) {
         let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
         // add things to your app here
+        app.insert_resource(ws_communitcator);
         app.add_system(run_ws);
         app.add_system(test_ws);
-        app.insert_resource(ws_communitcator);
+        app.add_startup_system(run_ws);
+        app.add_startup_system(test_ws);
         app.add_event::<C2SPackets>();
         app.add_event::<S2CPackets>();
     }

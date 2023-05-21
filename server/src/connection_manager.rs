@@ -2,7 +2,7 @@ use std::{path::Path, sync::Arc};
 
 use crate::data_types::client_map;
 
-use crate::data_types::server_client::ServerClient;
+use crate::data_types::server_client::{ClientComms, ServerClient};
 use crate::data_types::server_turtle::{ServerTurtle, WsRecv, WsSend};
 use crate::data_types::turtle_map::TurtleMap;
 use crate::db::DB;
@@ -33,52 +33,42 @@ pub async fn main(
     let server_turtles = Arc::new(Mutex::new(TurtleMap::new()));
     let server_clients = Arc::new(Mutex::new(client_map::ClientMap::new()));
     let (turtle_comms_tx, mut turtle_comms_rx) = unbounded::<TurtleCommBus>();
-    let (client_comms_tx, mut client_comms_rx) = unbounded::<(i32, C2SPackets)>();
+    let (client_comms_tx, mut client_comms_rx) = unbounded::<(i32, ClientComms)>();
     pin_mut!(turtle_comms_tx, client_comms_tx);
-
-    // let local_server_clients = server_clients.clone();
-    // let mut w = tokio::time::interval(Duration::seconds(5).to_std().unwrap());
-    // tokio::spawn(async move {
-    //     loop {
-    //         w.tick().await;
-    //         local_server_clients
-    //             .lock()
-    //             .await
-    //             .broadcast(S2CPackets::RequestedTurtles(vec![]))
-    //             .await;
-    //     }
-    // });
 
     let local_db = db.clone();
     let local_server_turtles = server_turtles.clone();
     let local_server_clients = server_clients.clone();
     tokio::spawn(async move {
         while let Some(w) = client_comms_rx.next().await {
-            let (client_index, packet) = w;
-            match packet {
-                C2SPackets::MoveTurtle { index, direction } => {
-                    for t in local_server_turtles
-                        .lock()
-                        .await
-                        .get_turtle_mut(index)
-                        .iter()
-                    {
-                        t.move_(direction).await;
+            let (client_index, comms) = w;
+            match comms {
+                ClientComms::KILL_ME => {}
+                ClientComms::Packet(packet) => match packet {
+                    C2SPackets::MoveTurtle { index, direction } => {
+                        for t in local_server_turtles
+                            .lock()
+                            .await
+                            .get_turtle_mut(index)
+                            .iter()
+                        {
+                            t.move_(direction).await;
+                        }
                     }
-                }
-                C2SPackets::RequestTurtles => {
-                    info!("This Bitch: {:?}", "");
-                    local_server_clients
-                        .lock()
-                        .await
-                        .send_to(
-                            S2CPackets::RequestedTurtles(
-                                local_db.lock().await.get_turtles().unwrap(),
-                            ),
-                            &client_index,
-                        )
-                        .await;
-                }
+                    C2SPackets::RequestTurtles => {
+                        info!("This Bitch: {}", client_index);
+                        local_server_clients
+                            .lock()
+                            .await
+                            .send_to(
+                                S2CPackets::RequestedTurtles(
+                                    local_db.lock().await.get_turtles().unwrap(),
+                                ),
+                                &client_index,
+                            )
+                            .await;
+                    }
+                },
             }
         }
     });
@@ -149,9 +139,7 @@ pub async fn main(
         }
     });
 
-    loop {}
-
-    // anyhow::Ok(())
+    anyhow::Ok(())
 }
 
 async fn accept_turtle(
