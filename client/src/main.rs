@@ -7,7 +7,7 @@ use client::{
     ws::WS,
     *,
 };
-use common::{turtle::Turtle, Pos3};
+use common::{client_packets::C2SPackets, turtle::Turtle, Pos3};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
@@ -31,7 +31,12 @@ fn main() {
         .add_system(turtle_spawner)
         .add_system(animate_light_direction)
         .add_system(input::orbit_input_map)
+        // .add_systems(, start)
         .run();
+}
+
+fn start(mut ws_writer: EventWriter<C2SPackets>) {
+    ws_writer.send(C2SPackets::RequestTurtles);
 }
 
 fn setup(

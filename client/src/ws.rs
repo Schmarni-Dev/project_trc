@@ -1,7 +1,7 @@
-use bevy::{log::prelude::*, prelude::*};
+use bevy::{app::AppExit, log::prelude::*, prelude::*};
 use common::client_packets::{C2SPackets, S2CPackets};
 use crossbeam::channel::{unbounded, Receiver, Sender};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{pin_mut, SinkExt, StreamExt};
 use serde_json::{from_str, to_string};
 use tokio::runtime::Runtime;
 use tokio_tungstenite::connect_async;
@@ -14,6 +14,7 @@ impl Plugin for WS {
         let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
         // add things to your app here
         app.add_system(run_ws);
+        app.add_system(test_ws);
         app.insert_resource(ws_communitcator);
         app.add_event::<C2SPackets>();
         app.add_event::<S2CPackets>();
@@ -42,34 +43,35 @@ impl WsCommunicator {
 
         let (s2c_tx, s2c_rx) = unbounded::<S2CPackets>();
         let (c2s_tx, c2s_rx) = unbounded::<C2SPackets>();
-
-        // rt.spawn(async move {
-        //     println!("WS MSG: {}", "txt2");
-        //     while let Some(Ok(Message::Text(txt))) = ws_rx.next().await {
-        //         println!("WS MSG: {}", txt);
-        //         if let Ok(msg) = from_str::<S2CPackets>(&txt) {
-        //             _ = s2c_tx.send(msg);
-        //         }
-        //     }
-        //     println!("WS MSG: {}", "txt");
-        // });
-        // rt.spawn(async move {
-        //     _ = ws_tx
-        //         .send(Message::Text(
-        //             to_string(&C2SPackets::RequestTurtles).unwrap(),
-        //         ))
-        //         .await
-        //         .unwrap();
-        //     while let Some(w) = c2s_rx.iter().next() {
-        //         _ = ws_tx.send(Message::Text(to_string(&w).unwrap())).await;
-        //     }
-        // });
+        rt.spawn(async move {
+            while let Some(Ok(Message::Text(msg))) = ws_rx.next().await {
+                info!("message!");
+                if let Ok(msg) = from_str::<S2CPackets>(&msg) {
+                    _ = s2c_tx.send(msg);
+                }
+            }
+        });
+        rt.spawn(async move {
+            while let Some(w) = c2s_rx.iter().next() {
+                info!("send message!");
+                _ = ws_tx
+                    .send(Message::Text(to_string(&w).unwrap()))
+                    .await
+                    .unwrap();
+            }
+        });
 
         Self {
             from_server: s2c_rx,
             to_server: c2s_tx,
             _runtime: rt,
         }
+    }
+}
+
+fn test_ws(mut read: EventReader<S2CPackets>) {
+    for p in read.iter() {
+        info!("{:#?}", p)
     }
 }
 
