@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use log::info;
 use tokio::{net::TcpStream, sync::mpsc::UnboundedSender};
 

@@ -3,7 +3,7 @@ use common::client_packets::{C2SPackets, S2CPackets};
 use futures::StreamExt;
 use futures_channel::mpsc::UnboundedSender;
 use futures_util::SinkExt;
-use log::{info, warn};
+use log::info;
 use rand::prelude::*;
 
 // use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};

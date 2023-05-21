@@ -99,6 +99,7 @@ impl ServerTurtle {
             }
         }
     }
+    #[allow(dead_code)]
     async fn send_ws(&mut self, packet: S2TPackets) {
         _ = self
             .send
@@ -106,7 +107,10 @@ impl ServerTurtle {
             .await;
     }
 
-    pub async fn move_(&self, dir: MoveDirection) {}
+    pub async fn move_(&self, dir: MoveDirection) {
+        _ = dir;
+        todo!();
+    }
 
     async fn init(&mut self, mut recv: WsRecv) {
         while let Some(Ok(msg)) = recv.next().await {

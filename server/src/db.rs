@@ -1,5 +1,4 @@
 use anyhow::Ok;
-use chrono::{NaiveTime, Utc};
 use common::turtle::{Turtle, TurtleIndexType};
 use common::world_data::World;
 use log::{info, warn};
@@ -30,7 +29,6 @@ type DBType = HashMap<DBTables, DBDataTypes>;
 pub struct DB {
     data: DBType,
     file_path: PathBuf,
-    last_save_time_stamp: NaiveTime,
 }
 
 impl DB {
@@ -47,7 +45,6 @@ impl DB {
         Ok(DB {
             data: db,
             file_path: path.to_owned(),
-            last_save_time_stamp: Utc::now().time(),
         })
     }
 

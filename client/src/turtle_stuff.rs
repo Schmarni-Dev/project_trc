@@ -7,6 +7,8 @@ use crate::{components::LerpPos, util::pos3_to_vec3};
 #[derive(Component)]
 pub struct TurtleInstance {
     turtle: Turtle,
+    /// Remove in future just to lazy rn
+    #[allow(dead_code)]
     active: bool,
 }
 

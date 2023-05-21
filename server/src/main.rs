@@ -77,6 +77,4 @@ async fn main() -> Result<()> {
     }
 
     loop {}
-
-    Ok(())
 }
