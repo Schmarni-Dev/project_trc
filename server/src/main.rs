@@ -75,6 +75,6 @@ async fn main() -> Result<()> {
             turtle_connected_tx.clone(),
         ));
     }
-
-    loop {}
+    Ok(())
+    // loop {}
 }

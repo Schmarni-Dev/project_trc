@@ -9,7 +9,7 @@ pub struct TurtleInstance {
     turtle: Turtle,
     /// Remove in future just to lazy rn
     #[allow(dead_code)]
-    active: bool,
+    pub active: bool,
 }
 
 impl TurtleInstance {
@@ -37,11 +37,13 @@ impl DerefMut for TurtleInstance {
 #[derive(Bundle)]
 pub struct TurtleBundle {
     turtle: TurtleInstance,
-    pbr_bundle: SceneBundle,
+    scene: Handle<Scene>,
     lerp_pos: LerpPos,
+    transform: TransformBundle,
+    visability: VisibilityBundle,
 }
 
-pub struct TurtleSpawnData {
+pub struct SpawnTurtle {
     pub turtle: Turtle,
     pub active: bool,
 }
@@ -62,7 +64,7 @@ impl TurtleModels {
 }
 
 pub fn turtle_spawner(
-    mut events: EventReader<TurtleSpawnData>,
+    mut events: EventReader<SpawnTurtle>,
     models: Res<TurtleModels>,
     mut commands: Commands,
 ) {
@@ -70,12 +72,15 @@ pub fn turtle_spawner(
         let end_pos = pos3_to_vec3(t.turtle.position) + Vec3::splat(0.5);
         commands.spawn(TurtleBundle {
             turtle: TurtleInstance::new(t.turtle.clone()),
-            pbr_bundle: SceneBundle {
-                scene: models.get_correct_mdl(t.active),
-                transform: Transform::from_translation(end_pos),
+
+            scene: models.get_correct_mdl(t.active),
+            transform: TransformBundle {
+                local: Transform::from_translation(end_pos),
                 ..Default::default()
             },
+
             lerp_pos: LerpPos::new(end_pos, end_pos, 0.5),
+            visability: Default::default(),
         });
     }
 }

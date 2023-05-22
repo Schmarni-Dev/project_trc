@@ -1,14 +1,16 @@
 use bevy::{log::prelude::*, pbr::DirectionalLightShadowMap, prelude::*};
 use client::{
     bundels::ChunkBundle,
+    events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
     idk::ClientChunk,
     systems::Systems,
-    turtle_stuff::{turtle_spawner, TurtleModels, TurtleSpawnData},
-    ws::WS,
+    turtle_stuff::{turtle_spawner, SpawnTurtle, TurtleInstance, TurtleModels},
+    ws::{WsCommunicator, WS},
     *,
 };
 use common::{
     client_packets::{C2SPackets, S2CPackets},
+    turtle::MoveDirection,
     Pos3,
 };
 use smooth_bevy_cameras::{
@@ -29,25 +31,86 @@ fn main() {
         .add_plugin(OrbitCameraPlugin::new(true))
         .add_plugin(Systems)
         .add_plugin(WS)
-        .add_event::<TurtleSpawnData>()
+        .add_plugin(EventsPlugin)
+        .add_event::<SpawnTurtle>()
         .add_startup_system(setup)
         .add_system(setup_turtles)
         .add_system(turtle_spawner)
         .add_system(animate_light_direction)
+        .add_system(test)
         .add_system(input::orbit_input_map)
         .run();
 }
 
+fn test(
+    input: Res<Input<KeyCode>>,
+    mut active_turtle_changed: EventWriter<ActiveTurtleChanged>,
+    mut ws_writer: EventWriter<C2SPackets>,
+    mut active_turtle_res: ResMut<ActiveTurtleRes>,
+    turtles: Query<&TurtleInstance>,
+    mut commands: Commands,
+) {
+    if input.just_pressed(KeyCode::T) {
+        info!("RESETING THE WS CONNECTION!!!");
+        let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
+        commands.insert_resource(ws_communitcator);
+    };
+    if input.just_pressed(KeyCode::Period) {
+        active_turtle_res.0 += 1;
+        active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
+    };
+    if input.just_pressed(KeyCode::Comma) {
+        active_turtle_res.0 -= 1;
+        active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
+    };
+    let valid_active_turtle = turtles.iter().any(|t| t.index == active_turtle_res.0);
+    if input.just_pressed(KeyCode::W) && valid_active_turtle {
+        ws_writer.send(C2SPackets::MoveTurtle {
+            index: active_turtle_res.0,
+            direction: MoveDirection::Forward,
+        })
+    };
+    if input.just_pressed(KeyCode::S) && valid_active_turtle {
+        ws_writer.send(C2SPackets::MoveTurtle {
+            index: active_turtle_res.0,
+            direction: MoveDirection::Back,
+        })
+    };
+    if input.just_pressed(KeyCode::A) && valid_active_turtle {
+        ws_writer.send(C2SPackets::MoveTurtle {
+            index: active_turtle_res.0,
+            direction: MoveDirection::Left,
+        })
+    };
+    if input.just_pressed(KeyCode::D) && valid_active_turtle {
+        ws_writer.send(C2SPackets::MoveTurtle {
+            index: active_turtle_res.0,
+            direction: MoveDirection::Right,
+        })
+    };
+    if input.just_pressed(KeyCode::E) && valid_active_turtle {
+        ws_writer.send(C2SPackets::MoveTurtle {
+            index: active_turtle_res.0,
+            direction: MoveDirection::Up,
+        })
+    };
+    if input.just_pressed(KeyCode::Q) && valid_active_turtle {
+        ws_writer.send(C2SPackets::MoveTurtle {
+            index: active_turtle_res.0,
+            direction: MoveDirection::Down,
+        })
+    };
+}
+
 fn setup_turtles(
-    mut spwan_turtle: EventWriter<TurtleSpawnData>,
+    mut spwan_turtle: EventWriter<SpawnTurtle>,
     mut ws_reader: EventReader<S2CPackets>,
 ) {
     for p in ws_reader.iter() {
-        info!("test");
         match p.to_owned() {
             S2CPackets::RequestedTurtles(ts) => {
                 ts.into_iter().for_each(|t| {
-                    spwan_turtle.send(TurtleSpawnData {
+                    spwan_turtle.send(SpawnTurtle {
                         turtle: t,
                         active: false,
                     });
@@ -95,6 +158,7 @@ fn setup(
         active_turtle: asset_server.load("turtle.gltf#Scene0"),
         inactive_turtle: asset_server.load("turtle_inactive.gltf#Scene0"),
     });
+    commands.insert_resource(ActiveTurtleRes(0));
 
     ws_writer.send(C2SPackets::RequestTurtles);
 

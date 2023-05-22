@@ -8,3 +8,4 @@ pub mod systems;
 pub mod turtle_stuff;
 pub mod util;
 pub mod ws;
+pub mod fckit;

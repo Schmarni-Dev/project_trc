@@ -42,18 +42,17 @@ pub async fn main(
     tokio::spawn(async move {
         while let Some(w) = client_comms_rx.next().await {
             let (client_index, comms) = w;
+            info!("?!: {:#?}", comms);
             match comms {
                 ClientComms::KILL_ME => {}
                 ClientComms::Packet(packet) => match packet {
                     C2SPackets::MoveTurtle { index, direction } => {
-                        for t in local_server_turtles
-                            .lock()
-                            .await
-                            .get_turtle_mut(index)
-                            .iter()
-                        {
+                        info!("No Lock?... {}", index);
+                        if let Some(t) = local_server_turtles.lock().await.get_turtle_mut(index) {
+                            info!("This Bitch dir: {:#?}", direction);
                             t.move_(direction).await;
                         }
+                        info!("Yes Lock?");
                     }
                     C2SPackets::RequestTurtles => {
                         info!("This Bitch: {}", client_index);
@@ -98,7 +97,6 @@ pub async fn main(
     let client_comms_tx = client_comms_tx.clone();
     tokio::spawn(async move {
         while let Some((send, recv)) = new_client_connected.recv().await {
-            info!("HUH?!");
             server_clients.lock().await.push(ServerClient::new(
                 recv,
                 send,
@@ -157,9 +155,13 @@ async fn accept_turtle(
         info!("turtle exists");
         let t = db.get_turtle(info_data.index).unwrap();
         drop(db);
+        info!("Build!");
         let mut st = ServerTurtle::new(t, send, recv, comm_bus).await;
+        info!("Send!");
         st.on_msg_recived(T2SPackets::Info(info_data)).await;
+        info!("Push!");
         server_turtles.push(st);
+        info!("Pushed!");
     } else {
         info!("turtle dosen't exist ... yet");
 

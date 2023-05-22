@@ -54,7 +54,9 @@ impl ServerTurtle {
             send,
             comm_bus,
         };
-        turtle.init(recv).await;
+        tokio::spawn(async move {
+            turtle.init(recv).await;
+        });
         turtle
     }
 
@@ -101,15 +103,14 @@ impl ServerTurtle {
     }
     #[allow(dead_code)]
     async fn send_ws(&mut self, packet: S2TPackets) {
-        _ = self
-            .send
+        self.send
             .send(Message::Text(to_string_pretty(&packet).unwrap()))
-            .await;
+            .await
+            .unwrap();
     }
 
-    pub async fn move_(&self, dir: MoveDirection) {
-        _ = dir;
-        todo!();
+    pub async fn move_(&mut self, dir: MoveDirection) {
+        self.send_ws(S2TPackets::Move { direction: dir }).await;
     }
 
     async fn init(&mut self, mut recv: WsRecv) {

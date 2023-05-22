@@ -122,7 +122,9 @@ end
 ---@param dir "Forward"|"Back"|"Up"|"Down"|"Left"|"Right"
 ---@param ws Websocket
 function ws_move(dir, ws)
+    print("dwasdw", dir)
     if turtle_move(dir) then
+        print(dir)
         ws.send(textutils.serialiseJSON({ Moved = { direction = dir } }))
         send_blocks(ws)
     end
