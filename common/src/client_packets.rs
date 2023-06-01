@@ -20,4 +20,5 @@ pub struct MovedTurtleData {
 pub enum S2CPackets {
     MovedTurtle(MovedTurtleData),
     RequestedTurtles(Vec<turtle::Turtle>),
+    TurtleConnected(turtle::Turtle),
 }

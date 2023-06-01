@@ -22,13 +22,17 @@ use tokio_tungstenite::WebSocketStream;
 use tungstenite::Message;
 
 pub enum TurtleCommBus {
+    /// stupid fucking workaround. cant do this in ServerTurtle because the borrow checker; That mo'fucker
+    Packet((i32, T2SPackets)),
     Moved(i32),
+    RemoveMe,
 }
 
 pub async fn main(
     mut new_turte_connected: UnboundedReceiver<(InfoData, WsSend, WsRecv)>,
     mut new_client_connected: UnboundedReceiver<(WsSend, WsRecv)>,
 ) -> anyhow::Result<()> {
+    /// Db is For Presistent storage only!
     let db = Arc::new(Mutex::new(DB::new(Path::new("./db.json"))?));
     let server_turtles = Arc::new(Mutex::new(TurtleMap::new()));
     let server_clients = Arc::new(Mutex::new(client_map::ClientMap::new()));
@@ -36,32 +40,27 @@ pub async fn main(
     let (client_comms_tx, mut client_comms_rx) = unbounded::<(i32, ClientComms)>();
     pin_mut!(turtle_comms_tx, client_comms_tx);
 
-    let local_db = db.clone();
+    // let local_db = db.clone();
     let local_server_turtles = server_turtles.clone();
     let local_server_clients = server_clients.clone();
     tokio::spawn(async move {
         while let Some(w) = client_comms_rx.next().await {
             let (client_index, comms) = w;
-            info!("?!: {:#?}", comms);
             match comms {
                 ClientComms::KILL_ME => {}
                 ClientComms::Packet(packet) => match packet {
                     C2SPackets::MoveTurtle { index, direction } => {
-                        info!("No Lock?... {}", index);
                         if let Some(t) = local_server_turtles.lock().await.get_turtle_mut(index) {
-                            info!("This Bitch dir: {:#?}", direction);
                             t.move_(direction).await;
                         }
-                        info!("Yes Lock?");
                     }
                     C2SPackets::RequestTurtles => {
-                        info!("This Bitch: {}", client_index);
                         local_server_clients
                             .lock()
                             .await
                             .send_to(
                                 S2CPackets::RequestedTurtles(
-                                    local_db.lock().await.get_turtles().unwrap(),
+                                    local_server_turtles.lock().await.get_common_turtles(),
                                 ),
                                 &client_index,
                             )
@@ -72,13 +71,26 @@ pub async fn main(
         }
     });
 
-    let local_db = db.clone();
+    // let local_db = db.clone();
     let local_server_clients = server_clients.clone();
+    let local_server_turtles = server_turtles.clone();
     tokio::spawn(async move {
         while let Some(w) = turtle_comms_rx.next().await {
             match w {
+                TurtleCommBus::RemoveMe => {}
+
+                TurtleCommBus::Packet((i, p)) => {
+                    local_server_turtles
+                        .lock()
+                        .await
+                        .get_turtle_mut(i)
+                        .unwrap()
+                        .on_msg_recived(p)
+                        .await;
+                }
                 TurtleCommBus::Moved(index) => {
-                    let t = local_db.lock().await.get_turtle(index).unwrap();
+                    let sts = local_server_turtles.lock().await;
+                    let t = sts.get_turtle(index).unwrap();
                     let msg = MovedTurtleData {
                         index,
                         new_orientation: t.orientation,
@@ -95,9 +107,10 @@ pub async fn main(
     });
 
     let client_comms_tx = client_comms_tx.clone();
+    let local_server_clients = server_clients.clone();
     tokio::spawn(async move {
         while let Some((send, recv)) = new_client_connected.recv().await {
-            server_clients.lock().await.push(ServerClient::new(
+            local_server_clients.lock().await.push(ServerClient::new(
                 recv,
                 send,
                 client_comms_tx.clone(),
@@ -109,35 +122,123 @@ pub async fn main(
     let turtle_comms_tx = turtle_comms_tx.clone();
     let local_db = db.clone();
     let local_server_turtles = server_turtles.clone();
+    let local_server_clients = server_clients.clone();
     tokio::spawn(async move {
         while let Some((info_data, send, recv)) = new_turte_connected.recv().await {
-            accept_turtle(
-                info_data,
-                local_db.clone(),
-                local_server_turtles.clone(),
-                send,
-                recv,
-                turtle_comms_tx.clone(),
-            )
-            .await;
+            let mut db = local_db.lock().await;
+            let mut server_turtles = local_server_turtles.lock().await;
+            info!("new turtle with index: {}", info_data.index);
+            if db.contains_turtle(info_data.index) {
+                info!("turtle exists");
+                let t = db.get_turtle(info_data.index).unwrap();
+                drop(db);
+                local_server_clients
+                    .lock()
+                    .await
+                    .broadcast(S2CPackets::TurtleConnected(t.clone()))
+                    .await;
+                let mut st = ServerTurtle::new(t, send, recv, turtle_comms_tx.clone()).await;
+                st.on_msg_recived(T2SPackets::Info(info_data)).await;
+                server_turtles.push(st);
+            } else {
+                info!("turtle dosen't exist ... yet");
+
+                let InfoData {
+                    index,
+                    name,
+                    inventory,
+                    fuel,
+                    max_fuel,
+                } = &info_data;
+
+                let inner = Turtle::new(
+                    index.to_owned(),
+                    name.to_owned(),
+                    inventory.to_owned(),
+                    Pos3::ZERO,
+                    common::turtle::Orientation::North,
+                    fuel.to_owned(),
+                    max_fuel.to_owned(),
+                );
+                db.push_turtle(inner.clone()).unwrap();
+                drop(db);
+                local_server_clients
+                    .lock()
+                    .await
+                    .broadcast(S2CPackets::TurtleConnected(inner.clone()))
+                    .await;
+                let mut st = ServerTurtle::new(inner, send, recv, turtle_comms_tx.clone()).await;
+                st.on_msg_recived(T2SPackets::Info(info_data)).await;
+                server_turtles.push(st);
+            };
+            // accept_turtle(
+            //     info_data,
+            //     local_db.clone(),
+            //     local_server_turtles.clone(),
+            //     send,
+            //     recv,
+            //     turtle_comms_tx.clone(),
+            // )
+            // .await;
         }
     });
 
     let mut db_save_to_disk = tokio::time::interval(Duration::minutes(5).to_std().unwrap());
     db_save_to_disk.tick().await;
+    let local_server_turtles = server_turtles.clone();
     let local_db = db.clone();
     tokio::spawn(async move {
         loop {
             db_save_to_disk.tick().await;
-            local_db
-                .lock()
-                .await
-                .save()
-                .expect("!!!DB FALIED TO SAVE!!!");
+            save_db(local_db.clone(), local_server_turtles.clone()).await;
+        }
+    });
+
+    let local_server_turtles = server_turtles.clone();
+    let local_db = db.clone();
+    std::thread::spawn(move || loop {
+        let mut input = String::new();
+        match std::io::stdin().read_line(&mut input) {
+            Ok(_) => match trim_newline(input).as_str() {
+                "quit" | "q" | "exit" => {
+                    let local_server_turtles = local_server_turtles.clone();
+                    let local_db = local_db.clone();
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    rt.block_on(async move {
+                        save_db(local_db, local_server_turtles).await;
+                    });
+                    std::process::exit(0);
+                }
+                w => {
+                    println!("{:?}", w);
+                }
+            },
+            Err(error) => println!("error: {error}"),
         }
     });
 
     anyhow::Ok(())
+}
+
+fn trim_newline(mut s: String) -> String {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    };
+    s
+}
+
+async fn save_db(db: Arc<Mutex<DB>>, turtles: Arc<Mutex<TurtleMap>>) {
+    let mut db = db.lock().await;
+    turtles
+        .lock()
+        .await
+        .get_common_turtles()
+        .into_iter()
+        .for_each(|t| db.push_turtle(t).unwrap());
+    db.save().expect("!!!DB FALIED TO SAVE!!!");
 }
 
 async fn accept_turtle(
@@ -155,13 +256,9 @@ async fn accept_turtle(
         info!("turtle exists");
         let t = db.get_turtle(info_data.index).unwrap();
         drop(db);
-        info!("Build!");
         let mut st = ServerTurtle::new(t, send, recv, comm_bus).await;
-        info!("Send!");
         st.on_msg_recived(T2SPackets::Info(info_data)).await;
-        info!("Push!");
         server_turtles.push(st);
-        info!("Pushed!");
     } else {
         info!("turtle dosen't exist ... yet");
 

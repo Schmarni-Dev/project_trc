@@ -19,7 +19,13 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Cube.001"
+			"name":"turtle_active",
+			"rotation":[
+				0,
+				1,
+				0,
+				7.549790126404332e-08
+			]
 		}
 	],
 	"materials":[
@@ -73,7 +79,7 @@
 	],
 	"meshes":[
 		{
-			"name":"Cube.001",
+			"name":"turtle_active",
 			"primitives":[
 				{
 					"attributes":{

@@ -23,9 +23,7 @@ impl ClientMap {
         }
     }
     pub async fn send_to(&mut self, msg: S2CPackets, id: &i32) -> Option<()> {
-        info!("test: {}", id);
         self.0.get_mut(id)?.send_msg(&msg).await;
-        info!("test2: {}", id);
         Some(())
     }
     pub async fn execute_the_client(&mut self, id: &i32) {

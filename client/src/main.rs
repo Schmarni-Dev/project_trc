@@ -105,15 +105,22 @@ fn test(
 fn setup_turtles(
     mut spwan_turtle: EventWriter<SpawnTurtle>,
     mut ws_reader: EventReader<S2CPackets>,
+    active_turtle_res: Res<ActiveTurtleRes>,
 ) {
     for p in ws_reader.iter() {
         match p.to_owned() {
             S2CPackets::RequestedTurtles(ts) => {
                 ts.into_iter().for_each(|t| {
                     spwan_turtle.send(SpawnTurtle {
+                        active: active_turtle_res.0 == t.index,
                         turtle: t,
-                        active: false,
                     });
+                });
+            }
+            S2CPackets::TurtleConnected(t) => {
+                spwan_turtle.send(SpawnTurtle {
+                    active: active_turtle_res.0 == t.index,
+                    turtle: t,
                 });
             }
             _ => {}

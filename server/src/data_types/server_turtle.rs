@@ -54,13 +54,11 @@ impl ServerTurtle {
             send,
             comm_bus,
         };
-        tokio::spawn(async move {
-            turtle.init(recv).await;
-        });
+        turtle.init(recv).await;
         turtle
     }
 
-    pub(crate) async fn on_msg_recived(&mut self, msg: T2SPackets) {
+    pub async fn on_msg_recived(&mut self, msg: T2SPackets) {
         match msg {
             T2SPackets::Info(InfoData {
                 index: _,
@@ -91,8 +89,12 @@ impl ServerTurtle {
                     MoveDirection::Right => {
                         self.inner.orientation = self.inner.turn(TurnDir::Right)
                     }
-                }
-                _ = self.comm_bus.send(TurtleCommBus::Moved(self.index)).await;
+                };
+                info!("moved: {:#?}", self.inner);
+                self.comm_bus
+                    .send(TurtleCommBus::Moved(self.index))
+                    .await
+                    .unwrap();
             }
             T2SPackets::Blocks { up, down, front } => {
                 info!("up: {:?}", up);
@@ -114,12 +116,17 @@ impl ServerTurtle {
     }
 
     async fn init(&mut self, mut recv: WsRecv) {
-        while let Some(Ok(msg)) = recv.next().await {
-            if let Message::Text(msg) = msg {
-                info!("recived msg: {}", msg);
-                self.on_msg_recived(from_str::<T2SPackets>(&msg).unwrap())
-                    .await;
+        let mut channel = self.comm_bus.clone();
+        let index = self.index.clone();
+        tokio::spawn(async move {
+            while let Some(Ok(Message::Text(msg))) = recv.next().await {
+                if let Ok(msg) = from_str::<T2SPackets>(&msg) {
+                    channel
+                        .send(TurtleCommBus::Packet((index, msg)))
+                        .await
+                        .unwrap();
+                }
             }
-        }
+        });
     }
 }

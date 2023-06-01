@@ -66,7 +66,6 @@ impl ServerClient {
         });
     }
     pub async fn send_msg(&mut self, msg: &S2CPackets) {
-        info!("Sending: {}", serde_json::to_string_pretty(msg).unwrap());
         if self
             .ws_send
             .send(Message::Text(serde_json::to_string(msg).unwrap()))
