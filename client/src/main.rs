@@ -50,11 +50,11 @@ fn test(
     turtles: Query<&TurtleInstance>,
     mut commands: Commands,
 ) {
-    if input.just_pressed(KeyCode::T) {
-        info!("RESETING THE WS CONNECTION!!!");
-        let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
-        commands.insert_resource(ws_communitcator);
-    };
+    // if input.just_pressed(KeyCode::T) {
+    //     info!("RESETING THE WS CONNECTION!!!");
+    //     let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
+    //     commands.insert_resource(ws_communitcator);
+    // };
     if input.just_pressed(KeyCode::Period) {
         active_turtle_res.0 += 1;
         active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));

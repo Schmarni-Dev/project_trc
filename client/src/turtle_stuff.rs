@@ -2,7 +2,12 @@ use bevy::prelude::*;
 use common::turtle::Turtle;
 use std::ops::{Deref, DerefMut};
 
-use crate::{components::LerpPos, util::pos3_to_vec3};
+use crate::{
+    components::LerpTransform,
+    util::{pos3_to_vec3, quat_from_dir},
+};
+
+pub const TURTLE_LERP_TIME : f32 = 0.5;
 
 #[derive(Component)]
 pub struct TurtleInstance {
@@ -38,7 +43,7 @@ impl DerefMut for TurtleInstance {
 pub struct TurtleBundle {
     turtle: TurtleInstance,
     scene: Handle<Scene>,
-    lerp_pos: LerpPos,
+    lerp_pos: LerpTransform,
     transform: TransformBundle,
     visability: VisibilityBundle,
 }
@@ -63,6 +68,8 @@ impl TurtleModels {
     }
 }
 
+
+
 pub fn turtle_spawner(
     mut events: EventReader<SpawnTurtle>,
     models: Res<TurtleModels>,
@@ -79,7 +86,10 @@ pub fn turtle_spawner(
                 ..Default::default()
             },
 
-            lerp_pos: LerpPos::new(end_pos, end_pos, 0.5),
+            lerp_pos: LerpTransform::new(
+                end_pos,
+                quat_from_dir(pos3_to_vec3(t.turtle.orientation.get_forward_vec()), Vec3::Y),
+            ),
             visability: Default::default(),
         });
     }

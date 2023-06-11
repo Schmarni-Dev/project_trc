@@ -26,11 +26,11 @@
         },
         "position": {
           "x": 0,
-          "y": 3,
+          "y": 0,
           "z": 0
         },
-        "orientation": "East",
-        "fuel": 5012.0,
+        "orientation": "North",
+        "fuel": 4964.0,
         "max_fuel": 100000
       }
     }

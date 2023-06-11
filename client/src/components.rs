@@ -6,26 +6,41 @@ use common::Pos3;
 use crate::idk::ClientChunk;
 
 #[derive(Component)]
-pub struct LerpPos {
-    pub time: f32,
+pub struct LerpTransform {
+    pub pos_time: f32,
     pub start_pos: Vec3,
     pub end_pos: Vec3,
-    pub current_time: f32,
+    pub current_pos_time: f32,
+    pub start_rot: Quat,
+    pub end_rot: Quat,
+    pub current_rot_time: f32,
+    pub rot_time: f32,
 }
 
-impl LerpPos {
-    pub fn new(start_pos: Vec3, end_pos: Vec3, time: f32) -> LerpPos {
-        LerpPos {
-            time,
-            start_pos,
-            end_pos,
-            current_time: 0.,
+impl LerpTransform {
+    pub fn new(pos: Vec3, rot: Quat) -> LerpTransform {
+        LerpTransform {
+            pos_time: 1.,
+            start_pos: pos,
+            end_pos: pos,
+            current_pos_time: 1.,
+            start_rot: rot,
+            end_rot: rot,
+            current_rot_time: 1.,
+            rot_time: 1.,
         }
     }
-    pub fn lerp_to(&mut self, end_pos: Vec3) {
+    pub fn lerp_rot_to(&mut self, end_rot: Quat, time: f32) {
+        self.start_rot = self.end_rot;
+        self.end_rot = end_rot;
+        self.current_rot_time = 0.;
+        self.rot_time = time;
+    }
+    pub fn lerp_pos_to(&mut self, end_pos: Vec3, time: f32) {
         self.start_pos = self.end_pos;
         self.end_pos = end_pos;
-        self.current_time = 0.;
+        self.current_pos_time = 0.;
+        self.pos_time = time;
     }
 }
 

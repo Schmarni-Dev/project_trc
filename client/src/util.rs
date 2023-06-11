@@ -1,7 +1,16 @@
 use std::fmt::Debug;
 
-use bevy::prelude::Vec3;
+use bevy::prelude::{Vec3, Quat, Mat3};
 use common::Pos3;
+
+#[inline]
+/// Copied from bevy and modified
+pub fn quat_from_dir(direction: Vec3, up: Vec3) -> Quat {
+    let forward = -direction.normalize();
+    let right = up.cross(forward).normalize();
+    let up = forward.cross(right);
+    Quat::from_mat3(&Mat3::from_cols(right, up, forward))
+}
 #[allow(dead_code)]
 pub fn debug_println(val: impl Debug) {
     println!("{:?}", val)

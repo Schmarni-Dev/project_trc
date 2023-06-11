@@ -92,6 +92,41 @@ pub enum TurnDir {
     Right,
 }
 
+pub fn get_rotated_orientation(curr_orient: Orientation, dir: TurnDir) -> Orientation {
+    match curr_orient {
+        Orientation::North => {
+            if dir == TurnDir::Left {
+                Orientation::West
+            } else {
+                Orientation::East
+            }
+        }
+
+        Orientation::East => {
+            if dir == TurnDir::Left {
+                Orientation::North
+            } else {
+                Orientation::South
+            }
+        }
+
+        Orientation::South => {
+            if dir == TurnDir::Left {
+                Orientation::East
+            } else {
+                Orientation::West
+            }
+        }
+
+        Orientation::West => {
+            if dir == TurnDir::Left {
+                Orientation::South
+            } else {
+                Orientation::North
+            }
+        }
+    }
+}
 #[allow(dead_code)]
 impl Turtle {
     pub fn new(
@@ -114,39 +149,7 @@ impl Turtle {
         }
     }
     pub fn turn(&self, dir: TurnDir) -> Orientation {
-        match self.orientation {
-            Orientation::North => {
-                if dir == TurnDir::Left {
-                    Orientation::West
-                } else {
-                    Orientation::East
-                }
-            }
-
-            Orientation::East => {
-                if dir == TurnDir::Left {
-                    Orientation::North
-                } else {
-                    Orientation::South
-                }
-            }
-
-            Orientation::South => {
-                if dir == TurnDir::Left {
-                    Orientation::East
-                } else {
-                    Orientation::West
-                }
-            }
-
-            Orientation::West => {
-                if dir == TurnDir::Left {
-                    Orientation::South
-                } else {
-                    Orientation::North
-                }
-            }
-        }
+        get_rotated_orientation(self.orientation,dir)
     }
 
     pub fn get_forward_vec(&self) -> Pos3 {
