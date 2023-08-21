@@ -48,6 +48,17 @@ impl DB {
         })
     }
 
+    pub fn get_world(&self) -> World {
+        match self
+            .data
+            .get(&DBTables::World)
+            .unwrap_or(DBDataTypes::World(World::new()))
+        {
+            DBDataTypes::Turtles(_) => todo!(),
+            DBDataTypes::World(_) => todo!(),
+        }
+    }
+
     // fn base(&mut self) -> anyhow::Result<()> {
     //     info!(
     //         "time: {}",

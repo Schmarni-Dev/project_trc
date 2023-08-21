@@ -10,6 +10,7 @@ use chrono::Duration;
 use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets};
 use common::turtle::Turtle;
 use common::turtle_packets::{InfoData, T2SPackets};
+use common::world_data::Block;
 use common::Pos3;
 use futures_channel::mpsc::unbounded;
 use futures_util::stream::{SplitSink, SplitStream};
@@ -26,13 +27,14 @@ pub enum TurtleCommBus {
     Packet((i32, T2SPackets)),
     Moved(i32),
     RemoveMe,
+    UpdateBlock((Pos3, Block)),
 }
 
 pub async fn main(
     mut new_turte_connected: UnboundedReceiver<(InfoData, WsSend, WsRecv)>,
     mut new_client_connected: UnboundedReceiver<(WsSend, WsRecv)>,
 ) -> anyhow::Result<()> {
-    /// Db is For Presistent storage only!
+    // Db is For Presistent storage only!
     let db = Arc::new(Mutex::new(DB::new(Path::new("./db.json"))?));
     let server_turtles = Arc::new(Mutex::new(TurtleMap::new()));
     let server_clients = Arc::new(Mutex::new(client_map::ClientMap::new()));
@@ -71,7 +73,7 @@ pub async fn main(
         }
     });
 
-    // let local_db = db.clone();
+    let local_db = db.clone();
     let local_server_clients = server_clients.clone();
     let local_server_turtles = server_turtles.clone();
     tokio::spawn(async move {
@@ -101,6 +103,9 @@ pub async fn main(
                         .await
                         .broadcast(S2CPackets::MovedTurtle(msg))
                         .await;
+                }
+                TurtleCommBus::UpdateBlock((pos, block)) => {
+                    local_db.lock().await;
                 }
             }
         }

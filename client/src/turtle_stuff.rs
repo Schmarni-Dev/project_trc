@@ -48,6 +48,7 @@ pub struct TurtleBundle {
     visability: VisibilityBundle,
 }
 
+#[derive(Event)]
 pub struct SpawnTurtle {
     pub turtle: Turtle,
     pub active: bool,

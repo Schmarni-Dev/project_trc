@@ -1,6 +1,6 @@
 use crate::{turtle, Pos3};
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum C2SPackets {
     MoveTurtle {
         index: i32,
@@ -16,7 +16,7 @@ pub struct MovedTurtleData {
     pub new_pos: Pos3,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum S2CPackets {
     MovedTurtle(MovedTurtleData),
     RequestedTurtles(Vec<turtle::Turtle>),

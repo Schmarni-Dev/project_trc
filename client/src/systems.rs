@@ -14,11 +14,11 @@ pub struct Systems;
 impl Plugin for Systems {
     fn build(&self, app: &mut App) {
         // add things to your app here
-        app.add_system(lerp_pos_system);
-        app.add_system(move_turtle);
-        app.add_system(update_turtle_model);
-        app.add_system(update_cam_point_on_turtle_move);
-        app.add_system(lerp_rot_system);
+        app.add_systems(Update, lerp_pos_system);
+        app.add_systems(Update, move_turtle);
+        app.add_systems(Update, update_turtle_model);
+        app.add_systems(Update, update_cam_point_on_turtle_move);
+        app.add_systems(Update, lerp_rot_system);
     }
 }
 

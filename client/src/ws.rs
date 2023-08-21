@@ -14,10 +14,10 @@ impl Plugin for WS {
         let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
         // add things to your app here
         app.insert_resource(ws_communitcator);
-        app.add_system(run_ws);
-        app.add_system(test_ws);
-        app.add_startup_system(run_ws);
-        app.add_startup_system(test_ws);
+        app.add_systems(Update, run_ws);
+        app.add_systems(Update, test_ws);
+        app.add_systems(Startup, run_ws);
+        app.add_systems(Startup, test_ws);
         app.add_event::<C2SPackets>();
         app.add_event::<S2CPackets>();
     }

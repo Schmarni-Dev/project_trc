@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use common::{
     turtle::{MoveDirection, TurnDir, Turtle},
     turtle_packets::{InfoData, S2TPackets, T2SPackets},
-    Pos3,
+    Pos3, world_data::Block,
 };
 
 use futures_channel::mpsc::UnboundedSender;
@@ -84,7 +84,7 @@ impl ServerTurtle {
                         self.inner.position -= forward;
                     }
                     MoveDirection::Up => self.inner.position += Pos3::new(0, 1, 0),
-                    MoveDirection::Down => self.inner.position -= Pos3::new(0, 1, 0),
+                    MoveDirection::Down => self.inner.position += Pos3::new(0, -1, 0),
                     MoveDirection::Left => self.inner.orientation = self.inner.turn(TurnDir::Left),
                     MoveDirection::Right => {
                         self.inner.orientation = self.inner.turn(TurnDir::Right)
@@ -100,6 +100,8 @@ impl ServerTurtle {
                 info!("up: {:?}", up);
                 info!("front: {:?}", front);
                 info!("down: {:?}", down);
+                self.comm_bus.send(TurtleCommBus::UpdateBlock(self.position + Pos3::new(0, 1, 0),Block::))
+
             }
         }
     }

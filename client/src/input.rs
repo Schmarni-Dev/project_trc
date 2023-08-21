@@ -35,7 +35,7 @@ pub fn orbit_input_map(
         events.send(ControlEvent::Orbit(mouse_rotate_sensitivity * cursor_delta));
     }
 
-    if mouse_buttons.pressed(MouseButton::Right) && keyboard.pressed(KeyCode::LControl) {
+    if mouse_buttons.pressed(MouseButton::Right) && keyboard.pressed(KeyCode::ControlLeft) {
         events.send(ControlEvent::TranslateTarget(
             mouse_translate_sensitivity * cursor_delta,
         ));

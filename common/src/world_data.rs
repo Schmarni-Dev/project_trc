@@ -1,4 +1,4 @@
-use crate::Pos3;
+use crate::{turtle::Maybe, Pos3};
 use serde::{Deserialize, Serialize};
 
 use super::vec3d::Vec3D;
@@ -42,14 +42,18 @@ impl Chunk {
             pos,
         }
     }
-    pub fn add_block(&mut self, pos: Pos3, name: &str) {
-        self.blocks.insert(
-            pos,
-            Block {
-                id: name.to_owned(),
-                pos: pos + self.pos.scale(CHUNK_SIZE),
-            },
-        )
+    // pub fn add_block(&mut self, pos: Pos3, name: &str) {
+    //     self.blocks.insert(
+    //         pos,
+    //         Block {
+    //             id: name.to_owned(),
+    //             pos: pos + self.pos.scale(CHUNK_SIZE),
+    //         },
+    //     )
+    // }
+    pub fn add_block(&mut self, block: Block) {
+        self.blocks
+            .insert(get_chunk_relative_pos(&block.pos), block);
     }
     pub fn get_block_id(&self, pos: &Pos3) -> Option<String> {
         self.blocks.get(pos).map(|block| block.id.clone())
@@ -65,6 +69,17 @@ pub struct Block {
     id: String,
     /// Global pos
     pos: Pos3,
+    is_air: bool,
+}
+
+impl Block {
+    pub fn new(ident: Option<String>, pos: &Pos3) -> Block {
+        Block {
+            is_air: ident.is_none(),
+            id: ident.unwrap_or_default(),
+            pos: *pos,
+        }
+    }
 }
 
 impl World {
@@ -73,5 +88,9 @@ impl World {
             .get(&get_chunk_containing_block(pos))?
             .blocks
             .get(pos)
+    }
+
+    pub fn new() -> World {
+        World { chunks: Vec3D::new() }
     }
 }

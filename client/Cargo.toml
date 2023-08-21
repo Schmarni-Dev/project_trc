@@ -1,15 +1,15 @@
 [package]
-name = "client"
+name = "trc_client"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = "0.10.1"
+bevy = {version = "0.11.2", features = ["wayland"]}
 common = { path = "../common" }
 actually_usable_voxel_mesh_gen = { path = "../actually_usable_voxel_mesh_gen" }
-smooth-bevy-cameras = "0.8.0"
+smooth-bevy-cameras = "0.9.0"
 serde_json = "1.0.96"
 url = "2.3.1"
 typetag = "0.2.8"

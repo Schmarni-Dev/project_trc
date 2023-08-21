@@ -1,5 +1,5 @@
 use bevy::{log::prelude::*, pbr::DirectionalLightShadowMap, prelude::*};
-use client::{
+use trc_client::{
     bundels::ChunkBundle,
     events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
     idk::ClientChunk,
@@ -17,6 +17,7 @@ use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
+use trc_client::input;
 use std::f32::consts::FRAC_PI_4;
 
 fn main() {
@@ -27,18 +28,18 @@ fn main() {
         })
         .insert_resource(DirectionalLightShadowMap::default())
         .add_plugins(DefaultPlugins)
-        .add_plugin(LookTransformPlugin)
-        .add_plugin(OrbitCameraPlugin::new(true))
-        .add_plugin(Systems)
-        .add_plugin(WS)
-        .add_plugin(EventsPlugin)
+        .add_plugins(LookTransformPlugin)
+        .add_plugins(OrbitCameraPlugin::new(true))
+        .add_plugins(Systems)
+        .add_plugins(WS)
+        .add_plugins(EventsPlugin)
         .add_event::<SpawnTurtle>()
-        .add_startup_system(setup)
-        .add_system(setup_turtles)
-        .add_system(turtle_spawner)
-        .add_system(animate_light_direction)
-        .add_system(test)
-        .add_system(input::orbit_input_map)
+        .add_systems(Startup, setup)
+        .add_systems(Update, setup_turtles)
+        .add_systems(Update, turtle_spawner)
+        .add_systems(Update, animate_light_direction)
+        .add_systems(Update, test)
+        .add_systems(Update, input::orbit_input_map)
         .run();
 }
 
