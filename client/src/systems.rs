@@ -3,8 +3,9 @@ use common::client_packets::S2CPackets;
 use smooth_bevy_cameras::LookTransform;
 
 use crate::{
-    components::LerpTransform,
+    components::{ChunkInstance, LerpTransform},
     events::{ActiveTurtleChanged, ActiveTurtleRes},
+    idk::do_mesh_shit,
     turtle_stuff::{TurtleInstance, TurtleModels, TURTLE_LERP_TIME},
     util::{pos3_to_vec3, quat_from_dir},
 };
@@ -19,6 +20,7 @@ impl Plugin for Systems {
         app.add_systems(Update, update_turtle_model);
         app.add_systems(Update, update_cam_point_on_turtle_move);
         app.add_systems(Update, lerp_rot_system);
+        app.add_systems(Update, chunk_update_mesh);
     }
 }
 
@@ -38,6 +40,19 @@ pub fn update_cam_point_on_turtle_move(
             cam.eye = (cam.eye - cam.target) + t.0.translation;
             cam.target = t.0.translation;
         }
+    }
+}
+
+pub fn chunk_update_mesh(
+    query: Query<(Entity, &ChunkInstance), Changed<ChunkInstance>>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for (entity, chunk_instance) in query.iter() {
+        let mut mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
+        do_mesh_shit(&mut mesh, chunk_instance);
+        commands.entity(entity).remove::<Handle<Mesh>>();
+        commands.entity(entity).insert(meshes.add(mesh));
     }
 }
 

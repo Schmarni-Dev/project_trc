@@ -3,7 +3,8 @@ use std::ops::{Deref, DerefMut};
 use common::{
     turtle::{MoveDirection, TurnDir, Turtle},
     turtle_packets::{InfoData, S2TPackets, T2SPackets},
-    Pos3, world_data::Block,
+    world_data::Block,
+    Pos3,
 };
 
 use futures_channel::mpsc::UnboundedSender;
@@ -91,17 +92,38 @@ impl ServerTurtle {
                     }
                 };
                 info!("moved: {:#?}", self.inner);
-                self.comm_bus
-                    .send(TurtleCommBus::Moved(self.index))
-                    .await
-                    .unwrap();
+                _ = self.comm_bus.send(TurtleCommBus::Moved(self.index)).await;
+                _ = self
+                    .comm_bus
+                    .send(TurtleCommBus::UpdateBlock(Block::new(None, &self.position)))
+                    .await;
             }
             T2SPackets::Blocks { up, down, front } => {
                 info!("up: {:?}", up);
                 info!("front: {:?}", front);
                 info!("down: {:?}", down);
-                self.comm_bus.send(TurtleCommBus::UpdateBlock(self.position + Pos3::new(0, 1, 0),Block::))
-
+                use TurtleCommBus::UpdateBlock;
+                _ = self
+                    .comm_bus
+                    .send(UpdateBlock(Block::new(
+                        up.into(),
+                        &(self.position + Pos3::new(0, 1, 0)),
+                    )))
+                    .await;
+                _ = self
+                    .comm_bus
+                    .send(UpdateBlock(Block::new(
+                        front.into(),
+                        &(self.position + self.get_forward_vec()),
+                    )))
+                    .await;
+                _ = self
+                    .comm_bus
+                    .send(UpdateBlock(Block::new(
+                        down.into(),
+                        &(self.position + Pos3::new(0, -1, 0)),
+                    )))
+                    .await;
             }
         }
     }
@@ -114,19 +136,31 @@ impl ServerTurtle {
     }
 
     pub async fn move_(&mut self, dir: MoveDirection) {
-        self.send_ws(S2TPackets::Move { direction: dir }).await;
+        self.send_ws(S2TPackets::Move(vec![dir])).await;
     }
 
     async fn init(&mut self, mut recv: WsRecv) {
         let mut channel = self.comm_bus.clone();
         let index = self.index.clone();
         tokio::spawn(async move {
-            while let Some(Ok(Message::Text(msg))) = recv.next().await {
-                if let Ok(msg) = from_str::<T2SPackets>(&msg) {
-                    channel
-                        .send(TurtleCommBus::Packet((index, msg)))
-                        .await
-                        .unwrap();
+            loop {
+                let packet = recv.next().await;
+                match packet {
+                    Some(Ok(Message::Text(msg))) => {
+                        if let Ok(msg) = from_str::<T2SPackets>(&msg) {
+                            channel
+                                .send(TurtleCommBus::Packet((index, msg)))
+                                .await
+                                .unwrap();
+                        }
+                    }
+                    None => {
+                        _ = channel.send(TurtleCommBus::RemoveMe(index)).await;
+                    }
+                    Some(Err(_)) => {
+                        _ = channel.send(TurtleCommBus::RemoveMe(index)).await;
+                    }
+                    Some(_) => {}
                 }
             }
         });

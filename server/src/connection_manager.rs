@@ -8,7 +8,7 @@ use crate::data_types::turtle_map::TurtleMap;
 use crate::db::DB;
 use chrono::Duration;
 use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets};
-use common::turtle::Turtle;
+use common::turtle::{Orientation, Turtle};
 use common::turtle_packets::{InfoData, T2SPackets};
 use common::world_data::Block;
 use common::Pos3;
@@ -26,8 +26,8 @@ pub enum TurtleCommBus {
     /// stupid fucking workaround. cant do this in ServerTurtle because the borrow checker; That mo'fucker
     Packet((i32, T2SPackets)),
     Moved(i32),
-    RemoveMe,
-    UpdateBlock((Pos3, Block)),
+    RemoveMe(i32),
+    UpdateBlock(Block),
 }
 
 pub async fn main(
@@ -42,14 +42,15 @@ pub async fn main(
     let (client_comms_tx, mut client_comms_rx) = unbounded::<(i32, ClientComms)>();
     pin_mut!(turtle_comms_tx, client_comms_tx);
 
-    // let local_db = db.clone();
+    let local_db = db.clone();
     let local_server_turtles = server_turtles.clone();
     let local_server_clients = server_clients.clone();
     tokio::spawn(async move {
         while let Some(w) = client_comms_rx.next().await {
             let (client_index, comms) = w;
             match comms {
-                ClientComms::KILL_ME => {}
+                ClientComms::KILL_ME => {
+                }
                 ClientComms::Packet(packet) => match packet {
                     C2SPackets::MoveTurtle { index, direction } => {
                         if let Some(t) = local_server_turtles.lock().await.get_turtle_mut(index) {
@@ -61,9 +62,19 @@ pub async fn main(
                             .lock()
                             .await
                             .send_to(
-                                S2CPackets::RequestedTurtles(
+                                S2CPackets::SetTurtles(
                                     local_server_turtles.lock().await.get_common_turtles(),
                                 ),
+                                &client_index,
+                            )
+                            .await;
+                    }
+                    C2SPackets::RequestWorld => {
+                        local_server_clients
+                            .lock()
+                            .await
+                            .send_to(
+                                S2CPackets::SetWorld(local_db.lock().await.get_world()),
                                 &client_index,
                             )
                             .await;
@@ -79,7 +90,9 @@ pub async fn main(
     tokio::spawn(async move {
         while let Some(w) = turtle_comms_rx.next().await {
             match w {
-                TurtleCommBus::RemoveMe => {}
+                TurtleCommBus::RemoveMe(index) => {
+                    local_server_turtles.lock().await.drop_turtle(&index);
+                }
 
                 TurtleCommBus::Packet((i, p)) => {
                     local_server_turtles
@@ -104,8 +117,12 @@ pub async fn main(
                         .broadcast(S2CPackets::MovedTurtle(msg))
                         .await;
                 }
-                TurtleCommBus::UpdateBlock((pos, block)) => {
-                    local_db.lock().await;
+                TurtleCommBus::UpdateBlock(block) => {
+                    let mut db = local_db.lock().await;
+                    let mut world = db.get_world();
+                    world.set_block(block.clone());
+                    db.set_world(world);
+                    local_server_clients.lock().await.broadcast(S2CPackets::WorldUpdate(block)).await;
                 }
             }
         }
@@ -161,7 +178,7 @@ pub async fn main(
                     name.to_owned(),
                     inventory.to_owned(),
                     Pos3::ZERO,
-                    common::turtle::Orientation::North,
+                    Orientation::North,
                     fuel.to_owned(),
                     max_fuel.to_owned(),
                 );
@@ -280,7 +297,7 @@ async fn accept_turtle(
             name.to_owned(),
             inventory.to_owned(),
             Pos3::ZERO,
-            common::turtle::Orientation::North,
+            Orientation::North,
             fuel.to_owned(),
             max_fuel.to_owned(),
         );

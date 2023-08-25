@@ -7,7 +7,7 @@ use crate::{
     util::{pos3_to_vec3, quat_from_dir},
 };
 
-pub const TURTLE_LERP_TIME : f32 = 0.5;
+pub const TURTLE_LERP_TIME: f32 = 0.5;
 
 #[derive(Component)]
 pub struct TurtleInstance {
@@ -69,7 +69,7 @@ impl TurtleModels {
     }
 }
 
-
+pub fn despawn_turtle() {}
 
 pub fn turtle_spawner(
     mut events: EventReader<SpawnTurtle>,
@@ -78,6 +78,16 @@ pub fn turtle_spawner(
 ) {
     for t in events.iter() {
         let end_pos = pos3_to_vec3(t.turtle.position) + Vec3::splat(0.5);
+        let mut lerp = LerpTransform::new(
+            end_pos - Vec3::NEG_Y,
+            quat_from_dir(
+                pos3_to_vec3(t.turtle.orientation.get_forward_vec()),
+                Vec3::Y,
+            ),
+        );
+
+        lerp.lerp_pos_to(end_pos, TURTLE_LERP_TIME);
+
         commands.spawn(TurtleBundle {
             turtle: TurtleInstance::new(t.turtle.clone()),
 
@@ -87,10 +97,7 @@ pub fn turtle_spawner(
                 ..Default::default()
             },
 
-            lerp_pos: LerpTransform::new(
-                end_pos,
-                quat_from_dir(pos3_to_vec3(t.turtle.orientation.get_forward_vec()), Vec3::Y),
-            ),
+            lerp_pos: lerp,
             visability: Default::default(),
         });
     }

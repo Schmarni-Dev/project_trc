@@ -14,6 +14,9 @@ impl ClientChunk {
     pub fn new(pos: Pos3) -> ClientChunk {
         ClientChunk(Chunk::new(pos))
     }
+    pub fn from_chunk(chunk: Chunk) -> ClientChunk {
+        ClientChunk(chunk)
+    }
 }
 
 impl Deref for ClientChunk {

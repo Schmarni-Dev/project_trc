@@ -1,4 +1,4 @@
-use crate::{turtle, Pos3};
+use crate::{turtle, Pos3, world_data::{Block, World}};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum C2SPackets {
@@ -7,6 +7,7 @@ pub enum C2SPackets {
         direction: turtle::MoveDirection,
     },
     RequestTurtles,
+    RequestWorld,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -19,6 +20,8 @@ pub struct MovedTurtleData {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum S2CPackets {
     MovedTurtle(MovedTurtleData),
-    RequestedTurtles(Vec<turtle::Turtle>),
+    SetTurtles(Vec<turtle::Turtle>),
     TurtleConnected(turtle::Turtle),
+    WorldUpdate(Block),
+    SetWorld(World),
 }

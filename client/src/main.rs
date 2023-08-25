@@ -1,24 +1,27 @@
-use bevy::{log::prelude::*, pbr::DirectionalLightShadowMap, prelude::*};
-use trc_client::{
-    bundels::ChunkBundle,
-    events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
-    idk::ClientChunk,
-    systems::Systems,
-    turtle_stuff::{turtle_spawner, SpawnTurtle, TurtleInstance, TurtleModels},
-    ws::{WsCommunicator, WS},
-    *,
-};
+#[allow(unused_imports)]
+use bevy::log::prelude::*;
+use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
 use common::{
     client_packets::{C2SPackets, S2CPackets},
     turtle::MoveDirection,
-    Pos3,
+    world_data::{get_chunk_containing_block, Chunk, World},
 };
+use futures::executor::block_on;
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
-use trc_client::input;
 use std::f32::consts::FRAC_PI_4;
+use trc_client::input;
+use trc_client::{
+    bundels::ChunkBundle,
+    components::ChunkInstance,
+    events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
+    idk::ClientChunk,
+    systems::Systems,
+    turtle_stuff::{turtle_spawner, SpawnTurtle, TurtleInstance, TurtleModels},
+    ws::WS,
+};
 
 fn main() {
     App::new()
@@ -34,9 +37,13 @@ fn main() {
         .add_plugins(WS)
         .add_plugins(EventsPlugin)
         .add_event::<SpawnTurtle>()
+        .add_event::<SpawnChunk>()
         .add_systems(Startup, setup)
         .add_systems(Update, setup_turtles)
         .add_systems(Update, turtle_spawner)
+        .add_systems(Update, handle_chunk_spawning)
+        .add_systems(Update, hanlde_world_updates)
+        .add_systems(Update, set_world_on_event)
         .add_systems(Update, animate_light_direction)
         .add_systems(Update, test)
         .add_systems(Update, input::orbit_input_map)
@@ -49,7 +56,6 @@ fn test(
     mut ws_writer: EventWriter<C2SPackets>,
     mut active_turtle_res: ResMut<ActiveTurtleRes>,
     turtles: Query<&TurtleInstance>,
-    mut commands: Commands,
 ) {
     // if input.just_pressed(KeyCode::T) {
     //     info!("RESETING THE WS CONNECTION!!!");
@@ -110,7 +116,7 @@ fn setup_turtles(
 ) {
     for p in ws_reader.iter() {
         match p.to_owned() {
-            S2CPackets::RequestedTurtles(ts) => {
+            S2CPackets::SetTurtles(ts) => {
                 ts.into_iter().for_each(|t| {
                     spwan_turtle.send(SpawnTurtle {
                         active: active_turtle_res.0 == t.index,
@@ -128,21 +134,14 @@ fn setup_turtles(
         }
     }
 }
-
+#[derive(Component)]
+pub struct MainCamera;
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ws_writer: EventWriter<C2SPackets>,
 ) {
-    let mut chunk_1 = ClientChunk::new(Pos3::ZERO);
-    chunk_1.add_block(Pos3::new(0, 0, 0), "origin");
-    chunk_1.add_block(Pos3::new(1, 0, 0), "Test");
-    chunk_1.add_block(Pos3::new(15, 0, 0), "sus:among_us");
-    let mut chunk_2 = ClientChunk::new(Pos3::new(1, 0, 0));
-    chunk_2.add_block(Pos3::new(0, 1, 0), "minecraft:moss_block");
-    chunk_2.add_block(Pos3::new(1, 1, 0), "minecraft:grass_block");
     commands
         .spawn(Camera3dBundle::default())
         .insert(OrbitCameraBundle::new(
@@ -153,7 +152,8 @@ fn setup(
             Vec3::splat(2.),
             Vec3::splat(0.5),
             Vec3::Y,
-        ));
+        ))
+        .insert(MainCamera);
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
@@ -167,12 +167,75 @@ fn setup(
         inactive_turtle: asset_server.load("turtle_inactive.gltf#Scene0"),
     });
     commands.insert_resource(ActiveTurtleRes(0));
-
+    commands.insert_resource(ChunkMat(materials.add(Color::rgb(1., 1., 1.).into())));
     ws_writer.send(C2SPackets::RequestTurtles);
+    ws_writer.send(C2SPackets::RequestWorld);
+}
 
-    let chunk_mat = materials.add(Color::rgb(1., 1., 1.).into());
-    commands.spawn(ChunkBundle::new(chunk_1, &mut meshes, chunk_mat.clone()));
-    commands.spawn(ChunkBundle::new(chunk_2, &mut meshes, chunk_mat.clone()));
+fn set_world_on_event(
+    query: Query<Entity, With<ChunkInstance>>,
+    mut commands: Commands,
+    mut event: EventReader<S2CPackets>,
+    mut chunk_spawn: EventWriter<SpawnChunk>,
+) {
+    for e in event.iter() {
+        if let S2CPackets::SetWorld(world) = e {
+            query.for_each(|entity| {
+                commands.entity(entity).despawn();
+            });
+            world
+                .get_chunks()
+                .iter()
+                .for_each(|(_, chunk)| chunk_spawn.send(SpawnChunk(chunk.clone())))
+        }
+    }
+}
+
+fn hanlde_world_updates(
+    mut query: Query<&mut ChunkInstance>,
+    mut event: EventReader<S2CPackets>,
+    mut chunk_spawn: EventWriter<SpawnChunk>,
+) {
+    for e in event.iter() {
+        if let S2CPackets::WorldUpdate(block) = e {
+            let chunk_pos = get_chunk_containing_block(block.get_pos());
+            match query
+                .iter_mut()
+                .find(|chunk| chunk.get_chunk_pos() == &chunk_pos)
+            {
+                Some(mut chunk) => {
+                    info!("pos: {:#?}", block.get_name());
+                    chunk.set_block(block.clone());
+                }
+                None => {
+                    let mut chunk = Chunk::new(chunk_pos);
+                    chunk.set_block(block.clone());
+                    chunk_spawn.send(SpawnChunk(chunk));
+                }
+            }
+        }
+    }
+}
+
+#[derive(Resource, Debug, DerefMut, Deref)]
+struct ChunkMat(Handle<StandardMaterial>);
+
+#[derive(Event, Debug, Deref, DerefMut)]
+struct SpawnChunk(Chunk);
+
+fn handle_chunk_spawning(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut commands: Commands,
+    mut event: EventReader<SpawnChunk>,
+    chunk_mat: Res<ChunkMat>,
+) {
+    for e in event.iter() {
+        commands.spawn(ChunkBundle::new(
+            ClientChunk::from_chunk(e.0.clone()),
+            &mut meshes,
+            chunk_mat.clone(),
+        ));
+    }
 }
 
 fn animate_light_direction(

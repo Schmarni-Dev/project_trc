@@ -52,11 +52,7 @@ impl ServerClient {
                     Ok(Message::Text(msg)) => {
                         if let Ok(msg) = serde_json::from_str::<C2SPackets>(&msg) {
                             match msg {
-                                packet => {
-                                    send.send((index, ClientComms::Packet(packet)))
-                                        .await
-                                        .unwrap();
-                                }
+                                packet => _ = send.send((index, ClientComms::Packet(packet))).await,
                             }
                         }
                     }

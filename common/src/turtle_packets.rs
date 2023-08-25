@@ -1,4 +1,4 @@
-use crate::turtle::{self, Inventory, Maybe, TurtleIndexType};
+use crate::turtle::{self, Inventory, Maybe, TurtleIndexType, MoveDirection};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct InfoData {
@@ -12,7 +12,7 @@ pub struct InfoData {
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum T2SPackets {
     Moved {
-        direction: turtle::MoveDirection,
+        direction: MoveDirection,
     },
     Info(InfoData),
     Blocks {
@@ -23,6 +23,6 @@ pub enum T2SPackets {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum S2TPackets {
-    Move { direction: turtle::MoveDirection },
+    Move(Vec<MoveDirection>),
     GetInfo,
 }

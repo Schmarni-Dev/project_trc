@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use common::turtle_packets::{InfoData, S2TPackets, T2SPackets};
 use futures::{SinkExt, StreamExt};

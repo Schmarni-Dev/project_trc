@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = {version = "0.11.2", features = ["wayland"]}
+bevy = { version = "0.11.2", features = [] }
 common = { path = "../common" }
 actually_usable_voxel_mesh_gen = { path = "../actually_usable_voxel_mesh_gen" }
 smooth-bevy-cameras = "0.9.0"
@@ -21,6 +21,7 @@ future-utils = "0.12.1"
 futures-util = "0.3.28"
 futures-channel = "0.3.28"
 futures = "0.3.28"
+
 
 [profile.dev]
 opt-level = 1

@@ -30,17 +30,19 @@ impl LerpTransform {
             rot_time: 1.,
         }
     }
-    pub fn lerp_rot_to(&mut self, end_rot: Quat, time: f32) {
+    pub fn lerp_rot_to(&mut self, end_rot: Quat, time: f32) -> &mut Self {
         self.start_rot = self.end_rot;
         self.end_rot = end_rot;
         self.current_rot_time = 0.;
         self.rot_time = time;
+        self
     }
-    pub fn lerp_pos_to(&mut self, end_pos: Vec3, time: f32) {
+    pub fn lerp_pos_to(&mut self, end_pos: Vec3, time: f32) -> &mut Self {
         self.start_pos = self.end_pos;
         self.end_pos = end_pos;
         self.current_pos_time = 0.;
         self.pos_time = time;
+        self
     }
 }
 

@@ -20,3 +20,8 @@ pub fn debug_println(val: impl Debug) {
 pub fn pos3_to_vec3(val: Pos3) -> Vec3 {
     Vec3::new(val.x as f32, val.y as f32, val.z as f32)
 }
+
+#[allow(dead_code)]
+pub fn vec3_to_pos3(val: Vec3) -> Pos3 {
+    Pos3::new(val.x as i32, val.y as i32, val.z as i32)
+}

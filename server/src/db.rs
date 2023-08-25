@@ -49,14 +49,19 @@ impl DB {
     }
 
     pub fn get_world(&self) -> World {
-        match self
+        let world = match self
             .data
             .get(&DBTables::World)
-            .unwrap_or(DBDataTypes::World(World::new()))
+            .unwrap_or(&DBDataTypes::World(World::new()))
         {
-            DBDataTypes::Turtles(_) => todo!(),
-            DBDataTypes::World(_) => todo!(),
-        }
+            DBDataTypes::Turtles(_) =>panic!("DB Fuckup"),
+            DBDataTypes::World(world) => world.clone(),
+        };
+        world
+    }
+
+    pub fn set_world(&mut self, world: World) {
+        self.push(DBTables::World, DBDataTypes::World(world))
     }
 
     // fn base(&mut self) -> anyhow::Result<()> {

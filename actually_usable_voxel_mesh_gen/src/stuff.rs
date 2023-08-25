@@ -31,14 +31,14 @@ pub fn get_vertecies_from_side(side: &Side) -> [Pos3; 6] {
             Pos3::new(0, 0, 0),
         ],
 
-        Side::PosZ => [
+        Side::NegZ => [
             Pos3::new(1, 0, 0),
             Pos3::new(0, 0, 0),
             Pos3::new(1, 1, 0),
             Pos3::new(0, 1, 0),
         ],
 
-        Side::NegZ => [
+        Side::PosZ => [
             Pos3::new(0, 0, 1),
             Pos3::new(1, 0, 1),
             Pos3::new(0, 1, 1),

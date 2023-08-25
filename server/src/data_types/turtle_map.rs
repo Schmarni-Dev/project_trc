@@ -27,4 +27,7 @@ impl TurtleMap {
     pub fn get_turtle_mut(&mut self, id: i32) -> Option<&mut ServerTurtle> {
         self.0.get_mut(&id)
     }
+    pub fn drop_turtle(&mut self, id: &i32) {
+        self.0.remove(id);
+    }
 }
