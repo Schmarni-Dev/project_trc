@@ -1,9 +1,10 @@
 [workspace]
 
-resolver="2"
+resolver = "2"
 members = [
-"client",
-"common",
-"actually_usable_voxel_mesh_gen",
-"server"
+	"client",
+	"common",
+	"actually_usable_voxel_mesh_gen",
+	"server",
+	"custom_egui_widgets",
 ]
