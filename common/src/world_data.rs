@@ -63,15 +63,18 @@ impl Chunk {
     pub fn get_chunk_pos(&self) -> Pos3 {
         self.pos
     }
+    pub fn all_blocks(&self) -> Vec3D<Block> {
+        self.blocks.clone()
+    }
 }
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Block {
-    id: String,
+    pub id: String,
     /// Global pos
-    pos: Pos3,
-    is_air: bool,
+    pub pos: Pos3,
+    pub is_air: bool,
 }
 
 impl Block {

@@ -35,12 +35,13 @@ pub async fn main(
     mut new_client_connected: UnboundedReceiver<(WsSend, WsRecv)>,
 ) -> anyhow::Result<()> {
     // Db is For Presistent storage only!
-    let db = Arc::new(Mutex::new(DB::new(Path::new("./db.json"))?));
+    let db = Arc::new(Mutex::new(DB::new(Path::new("./db.json")).await?));
     let server_turtles = Arc::new(Mutex::new(TurtleMap::new()));
     let server_clients = Arc::new(Mutex::new(client_map::ClientMap::new()));
     let (turtle_comms_tx, mut turtle_comms_rx) = unbounded::<TurtleCommBus>();
     let (client_comms_tx, mut client_comms_rx) = unbounded::<(i32, ClientComms)>();
     pin_mut!(turtle_comms_tx, client_comms_tx);
+    db.lock().await.transfer().await.unwrap();
 
     let local_db = db.clone();
     let local_server_turtles = server_turtles.clone();
@@ -181,6 +182,7 @@ pub async fn main(
                     Orientation::North,
                     fuel.to_owned(),
                     max_fuel.to_owned(),
+                    true
                 );
                 db.push_turtle(inner.clone()).unwrap();
                 drop(db);
@@ -300,6 +302,7 @@ async fn accept_turtle(
             Orientation::North,
             fuel.to_owned(),
             max_fuel.to_owned(),
+            true,
         );
         db.push_turtle(inner.clone()).unwrap();
         drop(db);

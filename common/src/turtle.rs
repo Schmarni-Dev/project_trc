@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
@@ -77,6 +79,7 @@ pub struct Turtle {
     pub orientation: Orientation,
     pub fuel: f32,
     pub max_fuel: i32,
+    pub is_online: bool,
 }
 
 impl PartialEq for Turtle {
@@ -137,6 +140,7 @@ impl Turtle {
         orientation: Orientation,
         fuel: f32,
         max_fuel: i32,
+        is_online: bool,
     ) -> Turtle {
         Turtle {
             index,
@@ -146,10 +150,11 @@ impl Turtle {
             orientation,
             fuel,
             max_fuel,
+            is_online,
         }
     }
     pub fn turn(&self, dir: TurnDir) -> Orientation {
-        get_rotated_orientation(self.orientation,dir)
+        get_rotated_orientation(self.orientation, dir)
     }
 
     pub fn get_forward_vec(&self) -> Pos3 {
@@ -177,6 +182,33 @@ pub enum Orientation {
     South,
     /// Towards -X
     West,
+}
+
+impl ToString for Orientation {
+    fn to_string(&self) -> String {
+        use Orientation as S;
+        match self {
+            S::North => "North".into(),
+            S::South => "South".into(),
+            S::West => "West".into(),
+            S::East => "East".into(),
+        }
+    }
+}
+
+impl FromStr for Orientation {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use Orientation as S;
+        match s {
+            "North" => Ok(S::North),
+            "South" => Ok(S::South),
+            "West" => Ok(S::West),
+            "East" => Ok(S::East),
+            _ => Err("Invalid String".into()),
+        }
+    }
 }
 
 impl Orientation {

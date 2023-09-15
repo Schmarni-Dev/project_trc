@@ -13,7 +13,7 @@ impl Pos3 {
         Pos3::new(0, 0, 0)
     }
     pub fn new(x: i32, y: i32, z: i32) -> Pos3 {
-        Pos3 { x: x, y: y, z: z }
+        Pos3 { x, y, z }
     }
     pub fn multiply(&self, vector: Pos3) -> Pos3 {
         Pos3::new(self.x * vector.x, self.y * vector.y, self.z * vector.z)

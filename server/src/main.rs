@@ -62,10 +62,11 @@ async fn main() -> Result<()> {
         }
     });
 
-    tokio::spawn(connection_manager::main(
-        turtle_connected_recv,
-        client_connected_recv,
-    ));
+    tokio::spawn(async{
+        connection_manager::main(turtle_connected_recv, client_connected_recv)
+            .await
+            .unwrap();
+    });
 
     while let Ok((stream, addr)) = turtle_listener.accept().await {
         // info!("dafuq?!");
