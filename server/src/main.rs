@@ -1,6 +1,6 @@
 use anyhow::Result;
 use backend::*;
-use common::turtle_packets::InfoData;
+use common::turtle_packets::{SetupInfoData, T2SPackets};
 
 use futures_util::{
     pin_mut,
@@ -23,13 +23,14 @@ type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
 async fn main() -> Result<()> {
     // minutes wasted on trying to find an issue the it was just the logger being wongly configured: 10
     let _ = pretty_env_logger::formatted_timed_builder()
-        .filter(None, log::LevelFilter::Debug)
+        .filter(None, log::LevelFilter::Warn)
+        .filter(Some("backend"), log::LevelFilter::Debug)
         .init();
     let client_addr = "0.0.0.0:9001";
     let turtle_addr = "0.0.0.0:9002";
 
     let (turtle_connected_tx, turtle_connected_recv) =
-        unbounded_channel::<(InfoData, WsSend, WsRecv)>();
+        unbounded_channel::<(SetupInfoData, Vec<T2SPackets>, WsSend, WsRecv)>();
     let (client_connected_tx, client_connected_recv) = unbounded_channel::<(WsSend, WsRecv)>();
 
     pin_mut!(turtle_connected_tx);
@@ -62,7 +63,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    tokio::spawn(async{
+    tokio::spawn(async {
         connection_manager::main(turtle_connected_recv, client_connected_recv)
             .await
             .unwrap();

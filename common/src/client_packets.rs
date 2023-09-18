@@ -7,7 +7,7 @@ pub enum C2SPackets {
         direction: turtle::MoveDirection,
     },
     RequestTurtles,
-    RequestWorld,
+    RequestWorld(String),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

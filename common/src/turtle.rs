@@ -77,9 +77,10 @@ pub struct Turtle {
     pub inventory: Inventory,
     pub position: Pos3,
     pub orientation: Orientation,
-    pub fuel: f32,
+    pub fuel: i32,
     pub max_fuel: i32,
     pub is_online: bool,
+    pub world: String,
 }
 
 impl PartialEq for Turtle {
@@ -132,15 +133,29 @@ pub fn get_rotated_orientation(curr_orient: Orientation, dir: TurnDir) -> Orient
 }
 #[allow(dead_code)]
 impl Turtle {
+    pub fn new_dummy(index: TurtleIndexType, world: String,pos: Pos3,orientation: Orientation) -> Turtle {
+        Turtle::new(
+            index,
+            String::default(),
+            Inventory::default(),
+            pos,
+            orientation,
+            0,
+            0,
+            false,
+            world,
+        )
+    }
     pub fn new(
         index: TurtleIndexType,
         name: String,
         inventory: Inventory,
         position: Pos3,
         orientation: Orientation,
-        fuel: f32,
+        fuel: i32,
         max_fuel: i32,
         is_online: bool,
+        world: String,
     ) -> Turtle {
         Turtle {
             index,
@@ -151,6 +166,7 @@ impl Turtle {
             fuel,
             max_fuel,
             is_online,
+            world,
         }
     }
     pub fn turn(&self, dir: TurnDir) -> Orientation {

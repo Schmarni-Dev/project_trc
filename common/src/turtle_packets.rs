@@ -1,20 +1,32 @@
-use crate::turtle::{self, Inventory, Maybe, TurtleIndexType, MoveDirection};
+use crate::{
+    turtle::{Inventory, Maybe, MoveDirection, Orientation, TurtleIndexType},
+    Pos3,
+};
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct InfoData {
+// #[derive(serde::Serialize, serde::Deserialize, Debug)]
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct SetupInfoData {
+    pub facing: Orientation,
+    pub position: Pos3,
     pub index: TurtleIndexType,
-    pub name: String,
-    pub inventory: Inventory,
-    pub fuel: f32,
-    pub max_fuel: i32,
+    pub world: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum T2SPackets {
+    Batch(Vec<T2SPackets>),
+    SetupInfo(SetupInfoData),
     Moved {
         direction: MoveDirection,
     },
-    Info(InfoData),
+    SetMaxFuel(i32),
+    SetPos(Pos3),
+    SetOrientation(Orientation),
+    WorldUpdate(String),
+    InventoryUpdate(Inventory),
+    NameUpdate(String),
+    FuelUpdate(i32),
     Blocks {
         up: Maybe<String>,
         down: Maybe<String>,
@@ -24,5 +36,5 @@ pub enum T2SPackets {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum S2TPackets {
     Move(Vec<MoveDirection>),
-    GetInfo,
+    GetSetupInfo,
 }

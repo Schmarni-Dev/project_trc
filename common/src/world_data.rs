@@ -21,6 +21,7 @@ pub fn get_chunk_relative_pos(pos: &Pos3) -> Pos3 {
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct World {
+    name: String,
     chunks: Vec3D<Chunk>,
 }
 
@@ -71,6 +72,7 @@ impl Chunk {
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Block {
+    pub world: String,
     pub id: String,
     /// Global pos
     pub pos: Pos3,
@@ -78,11 +80,12 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(ident: Option<String>, pos: &Pos3) -> Block {
+    pub fn new(ident: Option<String>, pos: &Pos3, world_name: &str) -> Block {
         Block {
             is_air: ident.is_none(),
             id: ident.unwrap_or_default(),
             pos: *pos,
+            world: world_name.to_owned(),
         }
     }
     pub fn get_pos(&self) -> &Pos3 {
@@ -113,8 +116,9 @@ impl World {
         &self.chunks
     }
 
-    pub fn new() -> World {
+    pub fn new(name: &str) -> World {
         World {
+            name: name.to_owned(),
             chunks: Vec3D::new(),
         }
     }

@@ -169,7 +169,7 @@ fn setup(
     commands.insert_resource(ActiveTurtleRes(0));
     commands.insert_resource(ChunkMat(materials.add(Color::rgb(1., 1., 1.).into())));
     ws_writer.send(C2SPackets::RequestTurtles);
-    ws_writer.send(C2SPackets::RequestWorld);
+    ws_writer.send(C2SPackets::RequestWorld("test_world_01".into()));
 }
 
 fn set_world_on_event(
