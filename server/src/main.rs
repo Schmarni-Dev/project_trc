@@ -1,10 +1,20 @@
+use std::sync::Arc;
+
 use anyhow::Result;
-use backend::*;
+use axum::{
+    extract::{State, WebSocketUpgrade},
+    response::Response,
+    routing::{get, post},
+    Json, Router,
+};
+use backend::{db::DB, *};
 use common::turtle_packets::{SetupInfoData, T2SPackets};
 
+use futures_channel::mpsc::UnboundedSender;
 use futures_util::{
     pin_mut,
     stream::{SplitSink, SplitStream},
+    StreamExt,
 };
 
 use log::info;
@@ -18,6 +28,13 @@ use tungstenite::Message;
 type WsSend = SplitSink<WebSocketStream<TcpStream>, Message>;
 type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
 
+async fn get_worlds(State(db): State<Arc<DB>>) -> Json<Vec<String>> {
+    Json(db.get_worlds().await.unwrap_or_else(|_| Vec::new()))
+}
+async fn add_world(State(db): State<Arc<DB>>, name: String) {
+    db.create_world(&name).await.unwrap();
+}
+
 // amount of times i dead locked myself in TOKIOOOOO: 1
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,6 +43,16 @@ async fn main() -> Result<()> {
         .filter(None, log::LevelFilter::Warn)
         .filter(Some("backend"), log::LevelFilter::Debug)
         .init();
+    let db = Arc::new(DB::new().await?);
+    let app = Router::new()
+        .route("get_worlds", get(get_worlds))
+        .route("add_world", post(add_world))
+        .with_state(db);
+
+    axum::Server::bind(&"0.0.0.0:9003".parse().unwrap())
+        .serve(app.into_make_service())
+        .await?;
+
     let client_addr = "0.0.0.0:9001";
     let turtle_addr = "0.0.0.0:9002";
 

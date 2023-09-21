@@ -30,9 +30,8 @@ pub enum TurtleCommBus {
 pub async fn main(
     mut new_turte_connected: UnboundedReceiver<(SetupInfoData, Vec<T2SPackets>, WsSend, WsRecv)>,
     mut new_client_connected: UnboundedReceiver<(WsSend, WsRecv)>,
+    db: Arc<DB>,
 ) -> anyhow::Result<()> {
-    // Db is For Presistent storage only!
-    let db = Arc::new(DB::new().await?);
     let server_turtles = Arc::new(Mutex::new(TurtleMap::new()));
     let server_clients = Arc::new(Mutex::new(client_map::ClientMap::new()));
     let (turtle_comms_tx, mut turtle_comms_rx) = unbounded::<TurtleCommBus>();
@@ -80,12 +79,7 @@ pub async fn main(
                         local_server_clients
                             .lock()
                             .await
-                            .send_to(
-                                S2CPackets::SetTurtles(
-                                    turtles
-                                ),
-                                &client_index,
-                            )
+                            .send_to(S2CPackets::SetTurtles(turtles), &client_index)
                             .await;
                     }
                     C2SPackets::RequestWorld(name) => {

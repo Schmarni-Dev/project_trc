@@ -16,6 +16,16 @@ function log(...)
     logs:push(...)
 end
 
+---@return string[]
+local function get_worlds()
+    local req = http.get("http://schmerver.mooo.com:9002/get_worlds")
+    if req == nil then return {} end
+    local data = req.readAll()
+    if data == nil then return {} end
+    ---@diagnostic disable-next-line: return-type-mismatch
+    return textutils.unserialiseJSON(data);
+end
+
 ---@param ws Websocket
 local function send_blocks(ws)
     local data = util.ConstructBlocksPacket(util.process_inspect(turtle.inspectUp()),
@@ -156,13 +166,26 @@ local function get_shutdown_message()
 end
 
 local function main()
+    print("please select the world of this turtle:")
+    print("select by typing the number next to the world")
+    local worlds = get_worlds()
+    for index, value in ipairs(worlds) do
+        print(index, ":", value)
+    end
+    local index = tonumber(io.read())
+    if worlds[index] == nil then
+        printError("Invalid index")
+        return
+    end
+    world = worlds[index]
+
     log("TRC Ready")
 
     connect_ws()
     local quit = false
-    util.set_terminate_handler(function()
-        quit = true
-    end)
+    -- util.set_terminate_handler(function()
+    --     quit = true
+    -- end)
 
     parallel.waitForAny(
         util.loop(ws_stuff, true),
