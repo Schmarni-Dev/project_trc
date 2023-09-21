@@ -28,6 +28,8 @@ impl TurtleMap {
         self.0.get_mut(&id)
     }
     pub fn drop_turtle(&mut self, id: &i32) {
-        self.0.remove(id);
+        if let Some(t) = self.0.remove(id) {
+            t.kill();
+        }
     }
 }

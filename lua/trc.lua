@@ -7,6 +7,8 @@ if util_code == nil then return end
 ---@module 'util'
 local util = assert(loadstring(util_code))()
 
+local turtle = turtle
+
 ---@type Queue<any>
 local logs = util.new_queue()
 
@@ -18,7 +20,7 @@ end
 
 ---@return string[]
 local function get_worlds()
-    local req = http.get("http://schmerver.mooo.com:9002/get_worlds")
+    local req = http.get("http://schmerver.mooo.com:9003/get_worlds")
     if req == nil then return {} end
     local data = req.readAll()
     if data == nil then return {} end
@@ -26,19 +28,16 @@ local function get_worlds()
     return textutils.unserialiseJSON(data);
 end
 
----@param ws Websocket
-local function send_blocks(ws)
-    local data = util.ConstructBlocksPacket(util.process_inspect(turtle.inspectUp()),
-        util.process_inspect(turtle.inspectDown()),
-        util.process_inspect(turtle.inspect()))
-    ws.send(textutils.serialiseJSON(data))
-end
 
 local world = "test_world_01"
+---@return pos3, orienation
+local function get_coords_and_orient()
+    return { x = 0, y = 0, z = 0 }, "North"
+end
 
 ---@param ws Websocket
 local function sendSetupInfo(ws)
-    local data = util.BatchPackets(util.SetupInfo(world, { x = 0, y = 0, z = 0 }, "North"), util.SetMaxFuel(),
+    local data = util.BatchPackets(util.SetupInfo(world, get_coords_and_orient()), util.SetMaxFuel(),
         util.FuelUpdate(), util.NameUpdate(), util.InventoryUpdate())
     local json = textutils.serialiseJSON(data)
     ws.send(json)
@@ -65,18 +64,6 @@ local function turtle_move(dir)
     return false
 end
 
----@param dir MoveDir
----@param ws Websocket
-local function ws_move(dir, ws)
-    log("moving", dir)
-    if turtle_move(dir) then
-        log(dir)
-        ws.send(textutils.serialiseJSON({ Moved = { direction = dir } }))
-        send_blocks(ws)
-    end
-end
-
-
 ---@type Queue<MoveDir>
 local moves = util.new_queue()
 ---@type Queue<any>
@@ -91,7 +78,6 @@ local ws
 local function handle_ws_messages(msg)
     if msg == "GetSetupInfo" then
         sendSetupInfo(ws)
-        send_blocks(ws)
     elseif msg.Move then
         ---@diagnostic disable-next-line: unused-local
         for i, move in pairs(msg.Move) do
@@ -141,7 +127,7 @@ end
 local function loop_shit()
     moves:pop_handler(function(value)
         log("w move :", value)
-        ws_move(value, ws)
+        turtle_move(value)
     end)
 end
 
@@ -174,7 +160,7 @@ local function main()
     end
     local index = tonumber(io.read())
     if worlds[index] == nil then
-        printError("Invalid index")
+        error("Invalid index")
         return
     end
     world = worlds[index]
@@ -183,6 +169,7 @@ local function main()
 
     connect_ws()
     local quit = false
+    turtle = util.get_hijacked_turtle_api(ws, true)
     -- util.set_terminate_handler(function()
     --     quit = true
     -- end)
@@ -205,10 +192,10 @@ local function main()
     )
 end
 local sucsess, value = pcall(main)
--- util.term_clear()
+util.term_clear()
 print(util.get_logo_string(get_shutdown_message(), " "))
 if not sucsess then
-    print("Error:", value)
+    printError("Error:", value)
 end
-util.reset_event_handler()
+-- util.reset_event_handler()
 ws.close()

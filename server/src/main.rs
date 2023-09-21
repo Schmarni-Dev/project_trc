@@ -29,8 +29,11 @@ type WsSend = SplitSink<WebSocketStream<TcpStream>, Message>;
 type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
 
 async fn get_worlds(State(db): State<Arc<DB>>) -> Json<Vec<String>> {
-    Json(db.get_worlds().await.unwrap_or_else(|_| Vec::new()))
+    let w = db.get_worlds().await.unwrap();
+    info!("{w:#?}");
+    Json(w)
 }
+
 async fn add_world(State(db): State<Arc<DB>>, name: String) {
     db.create_world(&name).await.unwrap();
 }
@@ -45,13 +48,13 @@ async fn main() -> Result<()> {
         .init();
     let db = Arc::new(DB::new().await?);
     let app = Router::new()
-        .route("get_worlds", get(get_worlds))
-        .route("add_world", post(add_world))
-        .with_state(db);
+        .route("/get_worlds", get(get_worlds))
+        .route("/add_world", post(add_world))
+        .with_state(db.clone());
 
-    axum::Server::bind(&"0.0.0.0:9003".parse().unwrap())
-        .serve(app.into_make_service())
-        .await?;
+    tokio::spawn(
+        axum::Server::bind(&"0.0.0.0:9003".parse().unwrap()).serve(app.into_make_service()),
+    );
 
     let client_addr = "0.0.0.0:9001";
     let turtle_addr = "0.0.0.0:9002";
@@ -90,8 +93,9 @@ async fn main() -> Result<()> {
         }
     });
 
+    let db_ = db.clone();
     tokio::spawn(async {
-        connection_manager::main(turtle_connected_recv, client_connected_recv)
+        connection_manager::main(turtle_connected_recv, client_connected_recv, db_)
             .await
             .unwrap();
     });

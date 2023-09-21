@@ -98,7 +98,14 @@ fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.sampler_descriptor = ImageSampler::default();
 }
 
-fn ui(mut worlds: ResMut<WorldState>, mut contexts: EguiContexts) {
+fn ui(
+    mut worlds: ResMut<WorldState>,
+    mut contexts: EguiContexts,
+    turtles: Query<&TurtleInstance>,
+    mut active_turtle_res: ResMut<ActiveTurtleRes>,
+) {
+    let mut turtles = turtles.iter().filter(|t| t.is_online);
+    let curr_turtle = turtles.find(|t| t.index == active_turtle_res.0);
     egui::TopBottomPanel::top("TRC").show(contexts.ctx_mut(), move |ui| {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -106,7 +113,7 @@ fn ui(mut worlds: ResMut<WorldState>, mut contexts: EguiContexts) {
                 if let Some(w) = &worlds.curr_world {
                     c = c.selected_text(w);
                 }
-            
+
                 c.show_ui(ui, |ui| {
                     ui.style_mut().wrap = Some(false);
                     ui.set_min_width(60.0);
@@ -115,14 +122,37 @@ fn ui(mut worlds: ResMut<WorldState>, mut contexts: EguiContexts) {
                         ui.selectable_value(&mut worlds.curr_world, Some(w.to_owned()), w);
                     }
                 });
+                // Turtles
+                let mut c = egui::ComboBox::from_label("Turtle");
+                if let Some(t) = &curr_turtle {
+                    c = c.selected_text(&format!("{}: {}", &t.index, &t.name));
+                }
+
+                c.show_ui(ui, |ui| {
+                    ui.style_mut().wrap = Some(false);
+                    ui.set_min_width(60.0);
+                    // Hateble (the clone here)
+                    for t in turtles {
+                        ui.selectable_value(
+                            &mut active_turtle_res.0,
+                            t.index,
+                            &format!("{}: {}", &t.index, &t.name),
+                        );
+                    }
+                });
             });
-            ui.add(
-                custom_egui_widgets::CircleDisplay::new()
-                    .size(2.0)
-                    .stroke_width(4.0)
-                    .font_size(20.0)
-                    .build(&3, &30),
-            );
+            if let Some(t) = curr_turtle {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.add_space(1.0);
+                    ui.add(
+                        custom_egui_widgets::CircleDisplay::new()
+                            .size(2.0)
+                            .stroke_width(4.0)
+                            .font_size(20.0)
+                            .build(&t.fuel, &t.max_fuel),
+                    );
+                });
+            }
         });
     });
 }

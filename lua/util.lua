@@ -177,6 +177,108 @@ function M.process_inspect(exits, data)
     return M.get_maybe_using_bool(exits, M.fix_inspect(data))
 end
 
+---@param ws Websocket
+function M.send_blocks(ws)
+    local data = M.ConstructBlocksPacket(
+        M.process_inspect(turtle.inspectUp()),
+        M.process_inspect(turtle.inspectDown()),
+        M.process_inspect(turtle.inspect())
+    )
+    ws.send(textutils.serialiseJSON(data))
+end
+
+--- you're sitll expected to handle stuff like inv and fuel updates
+---@param ws Websocket
+---@param send_block_updates? boolean
+function M.get_hijacked_turtle_api(ws, send_block_updates)
+    local sbu = send_block_updates
+    if sbu == nil then
+        sbu = true
+    end
+    local t = turtle
+    ---@return boolean, string | nil
+    ---@diagnostic disable-next-line: duplicate-set-field
+    t.up = function()
+        local s, m = turtle.up()
+        if s then
+            M.send(ws, M.ConstructMovePacket("Up"))
+            if sbu then
+                M.send_blocks(ws)
+            end
+        end
+        return s, m
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    t.down = function()
+        local s, m = turtle.down()
+        if s then
+            M.send(ws, M.ConstructMovePacket("Down"))
+            if sbu then
+                M.send_blocks(ws)
+            end
+        end
+        return s, m
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    t.forward = function()
+        local s, m = turtle.forward()
+        if s then
+            M.send(ws, M.ConstructMovePacket("Forward"))
+            if sbu then
+                M.send_blocks(ws)
+            end
+        end
+        return s, m
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    t.back = function()
+        local s, m = turtle.back()
+        if s then
+            M.send(ws, M.ConstructMovePacket("Back"))
+            if sbu then
+                M.send_blocks(ws)
+            end
+        end
+        return s, m
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    t.turnLeft = function()
+        local s, m = turtle.turnLeft()
+        if s then
+            M.send(ws, M.ConstructMovePacket("Left"))
+            if sbu then
+                M.send_blocks(ws)
+            end
+        end
+        return s, m
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    t.turnRight = function()
+        local s, m = turtle.up()
+        if s then
+            M.send(ws, M.ConstructMovePacket("Right"))
+            if sbu then
+                M.send_blocks(ws)
+            end
+        end
+        return s, m
+    end
+    return t
+end
+
+---comment
+---@param ws Websocket
+---@param packet packet
+function M.send(ws, packet)
+    ws.send(textutils.serialiseJSON(packet))
+end
+
+---@param dir MoveDir
+---@return packet
+function M.ConstructMovePacket(dir)
+    return { Moved = { direction = dir } }
+end
+
 ---@class Queue<T>: { [ integer ]:T, first: integer, last: integer, push: fun(self: Queue<T>,item: T), pop_handler: fun(self: Queue<T>,callback: fun(value: T)), get_amount_in_queue: fun(self: Queue<T>): integer }
 
 

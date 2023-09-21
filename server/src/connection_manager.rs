@@ -20,7 +20,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::Mutex;
 
 pub enum TurtleCommBus {
-    /// stupid fucking workaround. cant do this in ServerTurtle because the borrow checker; That mo'fucker
+    /// stupid fucking workaround. cant do this in ServerTurtle because the borrow checker; That fuck
     Packet((i32, T2SPackets)),
     Moved(i32),
     RemoveMe(i32),
@@ -118,6 +118,7 @@ pub async fn main(
         while let Some(w) = turtle_comms_rx.next().await {
             match w {
                 TurtleCommBus::RemoveMe(index) => {
+                    info!("Killing(?) trutle: {} ", &index);
                     local_server_turtles.lock().await.drop_turtle(&index);
                 }
 

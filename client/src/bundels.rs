@@ -1,4 +1,4 @@
-use bevy::{math::vec3, prelude::*};
+use bevy::{math::vec3, prelude::*, render::primitives::Aabb};
 use common::world_data::CHUNK_SIZE;
 
 use crate::{
@@ -12,6 +12,7 @@ pub struct ChunkBundle {
     chunk: ChunkInstance,
     pbr_bundle: PbrBundle,
     lerp_comp: LerpTransform,
+    aabb: Aabb,
 }
 
 impl ChunkBundle {
@@ -36,6 +37,7 @@ impl ChunkBundle {
                 ..Default::default()
             },
             lerp_comp,
+            aabb: Aabb::from_min_max(Vec3::ZERO, Vec3::splat(CHUNK_SIZE as f32)),
         }
     }
 }

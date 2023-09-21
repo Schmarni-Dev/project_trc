@@ -16,10 +16,11 @@ use futures_util::{
     SinkExt, StreamExt,
 };
 use libsql_client::args;
+use log::error;
 #[allow(unused_imports)]
 use log::info;
 use serde_json::{from_str, to_string_pretty};
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, task::JoinHandle};
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::Message;
 
@@ -35,6 +36,7 @@ pub struct ServerTurtle {
     inner: Turtle,
     send: WsSend,
     comm_bus: UnboundedSender<TurtleCommBus>,
+    ws_read_task: Option<JoinHandle<()>>,
 }
 impl Deref for ServerTurtle {
     type Target = Turtle;
@@ -63,6 +65,7 @@ impl ServerTurtle {
             send,
             comm_bus,
             db,
+            ws_read_task: None,
         };
         turtle.init(recv).await;
         turtle
@@ -247,30 +250,43 @@ impl ServerTurtle {
         self.send_ws(S2TPackets::Move(vec![dir])).await;
     }
 
+    pub fn kill(self) {
+        if let Some(w) = self.ws_read_task {
+            w.abort()
+        }
+    }
+
     async fn init(&mut self, mut recv: WsRecv) {
         let mut channel = self.comm_bus.clone();
         let index = self.index.clone();
-        tokio::spawn(async move {
-            loop {
-                let packet = recv.next().await;
-                match packet {
-                    Some(Ok(Message::Text(msg))) => {
-                        if let Ok(msg) = from_str::<T2SPackets>(&msg) {
-                            channel
-                                .send(TurtleCommBus::Packet((index, msg)))
-                                .await
-                                .unwrap();
+        self.ws_read_task = Some(
+            tokio::spawn(async move {
+                loop {
+                    let packet = recv.next().await;
+                    info!("Turtle ws Message Recived: {:#?}", packet);
+                    match packet {
+                        Some(Ok(Message::Text(msg))) => {
+                            if let Ok(msg) = from_str::<T2SPackets>(&msg) {
+                                channel
+                                    .send(TurtleCommBus::Packet((index, msg)))
+                                    .await
+                                    .unwrap();
+                            }
                         }
+                        None => {
+                            channel.send(TurtleCommBus::RemoveMe(index)).await.unwrap();
+                            break;
+                        }
+                        Some(Err(e)) => {
+                            error!("Turtle ws error: {}", e);
+                            channel.send(TurtleCommBus::RemoveMe(index)).await.unwrap();
+                            break;
+                        }
+                        Some(_) => {}
                     }
-                    None => {
-                        _ = channel.send(TurtleCommBus::RemoveMe(index)).await;
-                    }
-                    Some(Err(_)) => {
-                        _ = channel.send(TurtleCommBus::RemoveMe(index)).await;
-                    }
-                    Some(_) => {}
                 }
-            }
-        });
+            })
+            .into(),
+        );
     }
 }
