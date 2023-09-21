@@ -1,0 +1,2 @@
+source ./setup_env.sh
+cargo run -p backend
