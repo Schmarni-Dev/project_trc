@@ -187,84 +187,92 @@ function M.send_blocks(ws)
     ws.send(textutils.serialiseJSON(data))
 end
 
---- you're sitll expected to handle stuff like inv and fuel updates
----@param ws Websocket
----@param send_block_updates? boolean
-function M.get_hijacked_turtle_api(ws, send_block_updates)
-    local sbu = send_block_updates
-    if sbu == nil then
-        sbu = true
-    end
-    local t = turtle
-    ---@return boolean, string | nil
-    ---@diagnostic disable-next-line: duplicate-set-field
-    t.up = function()
-        local s, m = turtle.up()
-        if s then
-            M.send(ws, M.ConstructMovePacket("Up"))
-            if sbu then
-                M.send_blocks(ws)
-            end
-        end
-        return s, m
-    end
-    ---@diagnostic disable-next-line: duplicate-set-field
-    t.down = function()
-        local s, m = turtle.down()
-        if s then
-            M.send(ws, M.ConstructMovePacket("Down"))
-            if sbu then
-                M.send_blocks(ws)
-            end
-        end
-        return s, m
-    end
-    ---@diagnostic disable-next-line: duplicate-set-field
-    t.forward = function()
-        local s, m = turtle.forward()
-        if s then
-            M.send(ws, M.ConstructMovePacket("Forward"))
-            if sbu then
-                M.send_blocks(ws)
-            end
-        end
-        return s, m
-    end
-    ---@diagnostic disable-next-line: duplicate-set-field
-    t.back = function()
-        local s, m = turtle.back()
-        if s then
-            M.send(ws, M.ConstructMovePacket("Back"))
-            if sbu then
-                M.send_blocks(ws)
-            end
-        end
-        return s, m
-    end
-    ---@diagnostic disable-next-line: duplicate-set-field
-    t.turnLeft = function()
-        local s, m = turtle.turnLeft()
-        if s then
-            M.send(ws, M.ConstructMovePacket("Left"))
-            if sbu then
-                M.send_blocks(ws)
-            end
-        end
-        return s, m
-    end
-    ---@diagnostic disable-next-line: duplicate-set-field
-    t.turnRight = function()
-        local s, m = turtle.up()
-        if s then
-            M.send(ws, M.ConstructMovePacket("Right"))
-            if sbu then
-                M.send_blocks(ws)
-            end
-        end
-        return s, m
-    end
-    return t
+--- Copied from the accepted anser: https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
+---@param obj table
+---@param seen? table
+function M.copy(obj, seen)
+  if type(obj) ~= 'table' then return obj end
+  if seen and seen[obj] then return seen[obj] end
+  local s = seen or {}
+  local res = setmetatable({}, getmetatable(obj))
+  s[obj] = res
+  for k, v in pairs(obj) do res[M.copy(k, s)] = M.copy(v, s) end
+  return res
 end
+
+
+---@type nil | Websocket
+NetworkedTurtleMoveWebsocket = nil
+
+local networked_turtle_movments = M.copy(turtle)
+---@return boolean, string | nil
+---@diagnostic disable-next-line: duplicate-set-field
+networked_turtle_movments.up = function()
+    local s, m = turtle.up()
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Up"))
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+---@diagnostic disable-next-line: duplicate-set-field
+networked_turtle_movments.down = function()
+    local s, m = turtle.down()
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Down"))
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+---@diagnostic disable-next-line: duplicate-set-field
+networked_turtle_movments.forward = function()
+    local s, m = turtle.forward()
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Forward"))
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+---@diagnostic disable-next-line: duplicate-set-field
+networked_turtle_movments.back = function()
+    local s, m = turtle.back()
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Back"))
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+---@diagnostic disable-next-line: duplicate-set-field
+networked_turtle_movments.turnLeft = function()
+    local s, m = turtle.turnLeft()
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Left"))
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+---@diagnostic disable-next-line: duplicate-set-field
+networked_turtle_movments.turnRight = function()
+    local s, m = turtle.turnRight()
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Right"))
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+M.HijackedTurtleMovments = networked_turtle_movments
 
 ---comment
 ---@param ws Websocket
@@ -312,7 +320,6 @@ function M.new_queue()
         local value = self[first]
         self.first = first + 1
         if value ~= nil then
-            log(value)
             callback(value)
         end
     end

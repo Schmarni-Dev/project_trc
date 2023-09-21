@@ -6,6 +6,7 @@ use futures_util::SinkExt;
 use log::info;
 use rand::prelude::*;
 
+use tokio::task::JoinHandle;
 // use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tungstenite::Message;
 
@@ -21,7 +22,9 @@ pub enum ClientComms {
 pub struct ServerClient {
     ws_send: WsSend,
     msg_send: UnboundedSender<(i32, ClientComms)>,
+    ws_read_handle: Option<JoinHandle<()>>,
     index: i32,
+    chunk_render_distance: u8,
 }
 
 impl ServerClient {
@@ -35,6 +38,8 @@ impl ServerClient {
             ws_send,
             msg_send,
             index: random(),
+            ws_read_handle: None,
+            chunk_render_distance: 8,
         };
         s.init(ws_recv);
         s
@@ -78,6 +83,8 @@ impl ServerClient {
     pub async fn delete(mut self) {
         self.msg_send.close().await.unwrap();
         self.ws_send.close().await.unwrap();
-        drop(self);
+        if let Some(h) = self.ws_read_handle {
+            h.abort();
+        }
     }
 }

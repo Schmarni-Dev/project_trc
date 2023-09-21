@@ -7,15 +7,30 @@ if util_code == nil then return end
 ---@module 'util'
 local util = assert(loadstring(util_code))()
 
-local turtle = turtle
+local turtle = util.HijackedTurtleMovments
 
----@type Queue<any>
+---@type Queue<string>
 local logs = util.new_queue()
 
----@diagnostic disable-next-line: lowercase-global
+---@diagnostic disable-next-line: lowercase-global, unused-vararg
 function log(...)
-    -- print(...)
-    logs:push(...)
+    local time = os.date("%S:%M:%H")
+    ---@type any[]
+    local arg = arg
+    local out = "["..time.."]"
+    for _, value in ipairs(arg) do
+        if type(value) == "table" then
+            value = textutils.serialise(value)
+        end
+        out = out .. " " .. tostring(value)
+    end
+
+    local f = fs.open("trc.log", "a")
+    if f ~= nil then
+        f.writeLine(out)
+        f.close()
+    end
+    logs:push(out)
 end
 
 ---@return string[]
@@ -46,7 +61,7 @@ end
 
 --#region util Functions
 ---@param dir  MoveDir
----@return boolean success If the turtle could move
+---@return boolean success, string | nil why_cant_move If the turtle could move
 local function turtle_move(dir)
     if dir == "Forward" then
         return turtle.forward()
@@ -119,14 +134,13 @@ local function render_ui()
     print("Msgs in Queue:", msgs:get_amount_in_queue())
     print("Runtime:", math.floor(os.clock() - start_time) .. "s")
 
-    for index, value in ipairs(logs) do
-        print(index .. ":", value)
-    end
+    -- for index, value in ipairs(logs) do
+    --     print(index .. ":", value)
+    -- end
 end
 
 local function loop_shit()
     moves:pop_handler(function(value)
-        log("w move :", value)
         turtle_move(value)
     end)
 end
@@ -168,8 +182,9 @@ local function main()
     log("TRC Ready")
 
     connect_ws()
+    NetworkedTurtleMoveWebsocket = ws
     local quit = false
-    turtle = util.get_hijacked_turtle_api(ws, true)
+
     -- util.set_terminate_handler(function()
     --     quit = true
     -- end)

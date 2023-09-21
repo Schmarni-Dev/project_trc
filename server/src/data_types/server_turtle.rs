@@ -19,6 +19,7 @@ use libsql_client::args;
 use log::error;
 #[allow(unused_imports)]
 use log::info;
+use rand::random;
 use serde_json::{from_str, to_string_pretty};
 use tokio::{net::TcpStream, task::JoinHandle};
 use tokio_tungstenite::WebSocketStream;
@@ -37,6 +38,7 @@ pub struct ServerTurtle {
     send: WsSend,
     comm_bus: UnboundedSender<TurtleCommBus>,
     ws_read_task: Option<JoinHandle<()>>,
+    instance_id: i32,
 }
 impl Deref for ServerTurtle {
     type Target = Turtle;
@@ -66,6 +68,7 @@ impl ServerTurtle {
             comm_bus,
             db,
             ws_read_task: None,
+            instance_id: random(),
         };
         turtle.init(recv).await;
         turtle
@@ -73,7 +76,7 @@ impl ServerTurtle {
 
     #[inline(always)]
     async fn re_packet(&mut self, msg: T2SPackets) -> Result<(), futures_channel::mpsc::SendError> {
-        self.comm(TurtleCommBus::Packet((self.index, msg))).await
+        self.comm(TurtleCommBus::Packet((self.instance_id, msg))).await
     }
     #[inline(always)]
     async fn comm(&mut self, msg: TurtleCommBus) -> Result<(), futures_channel::mpsc::SendError> {
@@ -84,7 +87,7 @@ impl ServerTurtle {
         match msg {
             T2SPackets::Batch(packets) => {
                 for p in packets {
-                    self.comm(TurtleCommBus::Packet((self.index, p))).await?;
+                    self.re_packet(p).await?;
                 }
             }
             T2SPackets::SetPos(pos) => {
@@ -245,6 +248,9 @@ impl ServerTurtle {
             .await
             .unwrap();
     }
+    pub fn get_instance_id(&self) -> i32 {
+        self.instance_id
+    }
 
     pub async fn move_(&mut self, dir: MoveDirection) {
         self.send_ws(S2TPackets::Move(vec![dir])).await;
@@ -258,7 +264,7 @@ impl ServerTurtle {
 
     async fn init(&mut self, mut recv: WsRecv) {
         let mut channel = self.comm_bus.clone();
-        let index = self.index.clone();
+        let instance_id = self.instance_id.clone();
         self.ws_read_task = Some(
             tokio::spawn(async move {
                 loop {
@@ -268,18 +274,18 @@ impl ServerTurtle {
                         Some(Ok(Message::Text(msg))) => {
                             if let Ok(msg) = from_str::<T2SPackets>(&msg) {
                                 channel
-                                    .send(TurtleCommBus::Packet((index, msg)))
+                                    .send(TurtleCommBus::Packet((instance_id, msg)))
                                     .await
                                     .unwrap();
                             }
                         }
                         None => {
-                            channel.send(TurtleCommBus::RemoveMe(index)).await.unwrap();
+                            channel.send(TurtleCommBus::RemoveMe(instance_id)).await.unwrap();
                             break;
                         }
                         Some(Err(e)) => {
                             error!("Turtle ws error: {}", e);
-                            channel.send(TurtleCommBus::RemoveMe(index)).await.unwrap();
+                            channel.send(TurtleCommBus::RemoveMe(instance_id)).await.unwrap();
                             break;
                         }
                         Some(_) => {}

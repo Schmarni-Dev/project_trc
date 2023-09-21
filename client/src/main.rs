@@ -3,7 +3,7 @@ use bevy::log::prelude::*;
 use bevy::{pbr::DirectionalLightShadowMap, prelude::*, render::texture::ImageSampler};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiSettings};
 use common::{
-    client_packets::{C2SPackets, S2CPackets},
+    client_packets::{C2SPackets, S2CPackets, SetTurtlesData},
     turtle::MoveDirection,
     world_data::{get_chunk_containing_block, Chunk},
 };
@@ -214,23 +214,25 @@ fn test(
 fn setup_turtles(
     mut spwan_turtle: EventWriter<SpawnTurtle>,
     mut ws_reader: EventReader<S2CPackets>,
+    world_state: Res<WorldState>,
     active_turtle_res: Res<ActiveTurtleRes>,
+    query: Query<Entity, With<TurtleInstance>>,
+    mut commands: Commands,
 ) {
     for p in ws_reader.iter() {
         match p.to_owned() {
-            S2CPackets::SetTurtles(ts) => {
-                ts.into_iter().for_each(|t| {
-                    spwan_turtle.send(SpawnTurtle {
-                        active: active_turtle_res.0 == t.index,
-                        turtle: t,
+            S2CPackets::SetTurtles(SetTurtlesData { turtles, world }) => {
+                if world_state.curr_world.as_ref().is_some_and(|w| w == &world) {
+                    query.for_each(|entity| {
+                        commands.entity(entity).despawn();
                     });
-                });
-            }
-            S2CPackets::TurtleConnected(t) => {
-                spwan_turtle.send(SpawnTurtle {
-                    active: active_turtle_res.0 == t.index,
-                    turtle: t,
-                });
+                    turtles.into_iter().for_each(|t| {
+                        spwan_turtle.send(SpawnTurtle {
+                            active: active_turtle_res.0 == t.index && t.is_online,
+                            turtle: t,
+                        });
+                    });
+                }
             }
             _ => {}
         }

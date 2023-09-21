@@ -14,8 +14,8 @@ impl TurtleMap {
         TurtleMap(HashMap::new())
     }
     pub fn push(&mut self, turtle: ServerTurtle) -> &mut Self {
-        info!("Registering Turtle: {}", turtle.index);
-        self.0.insert(turtle.index, turtle);
+        info!("Registering Turtle: {}, {}",&turtle.world, &turtle.index);
+        self.0.insert(turtle.get_instance_id(), turtle);
         self
     }
     pub fn get_common_turtles(&self) -> Vec<Turtle> {

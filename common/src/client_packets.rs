@@ -1,5 +1,5 @@
 use crate::{
-    turtle,
+    turtle::{self, Turtle},
     world_data::{Block, World},
     Pos3,
 };
@@ -22,11 +22,16 @@ pub struct MovedTurtleData {
     pub new_pos: Pos3,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SetTurtlesData {
+    pub turtles: Vec<Turtle>,
+    pub world: String,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum S2CPackets {
     MovedTurtle(MovedTurtleData),
-    SetTurtles(Vec<turtle::Turtle>),
-    TurtleConnected(turtle::Turtle),
+    SetTurtles(SetTurtlesData),
     Worlds(Vec<String>),
     WorldUpdate(Block),
     SetWorld(World),

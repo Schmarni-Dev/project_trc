@@ -7,7 +7,7 @@ use crate::data_types::server_turtle::{ServerTurtle, WsRecv, WsSend};
 use crate::data_types::turtle_map::TurtleMap;
 use crate::db::{DBError, DB};
 use chrono::Duration;
-use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets};
+use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets, SetTurtlesData};
 use common::turtle::{Orientation, Turtle};
 use common::turtle_packets::{SetupInfoData, T2SPackets};
 use common::world_data::Block;
@@ -45,7 +45,13 @@ pub async fn main(
         while let Some(w) = client_comms_rx.next().await {
             let (client_index, comms) = w;
             match comms {
-                ClientComms::KILL_ME => {}
+                ClientComms::KILL_ME => {
+                    local_server_clients
+                        .lock()
+                        .await
+                        .execute_the_client(&client_index)
+                        .await;
+                }
                 ClientComms::Packet(packet) => match packet {
                     C2SPackets::MoveTurtle { index, direction } => {
                         if let Some(t) = local_server_turtles.lock().await.get_turtle_mut(index) {
@@ -68,7 +74,7 @@ pub async fn main(
                         let mut turtles = match local_db.get_turtles(&world).await {
                             Ok(t) => t
                                 .into_iter()
-                                .filter(|t| indexes.contains(&t.index))
+                                .filter(|t| !indexes.contains(&t.index))
                                 .collect(),
                             Err(err) => {
                                 error!("{err}");
@@ -76,10 +82,11 @@ pub async fn main(
                             }
                         };
                         turtles.append(&mut online_turtles);
+                        info!("{turtles:#?}");
                         local_server_clients
                             .lock()
                             .await
-                            .send_to(S2CPackets::SetTurtles(turtles), &client_index)
+                            .broadcast(S2CPackets::SetTurtles(SetTurtlesData { turtles, world }))
                             .await;
                     }
                     C2SPackets::RequestWorld(name) => {
@@ -198,10 +205,35 @@ pub async fn main(
             st.on_msg_recived(T2SPackets::Batch(data)).await.unwrap();
             let t: Turtle = st.to_owned();
             server_turtles.push(st);
+            let world = t.world;
+            let mut online_turtles = local_server_turtles
+                .lock()
+                .await
+                .get_common_turtles()
+                .into_iter()
+                .map(|mut t| {
+                    t.is_online = true;
+                    t
+                })
+                .filter(|t| t.world == world)
+                .collect::<Vec<_>>();
+            let indexes = online_turtles.iter().map(|t| t.index).collect::<Vec<_>>();
+            let mut turtles = match local_db.get_turtles(&world).await {
+                Ok(t) => t
+                    .into_iter()
+                    .filter(|t| indexes.contains(&t.index))
+                    .collect(),
+                Err(err) => {
+                    error!("{err}");
+                    Vec::new()
+                }
+            };
+            turtles.append(&mut online_turtles);
+            info!("{turtles:#?}");
             local_server_clients
                 .lock()
                 .await
-                .broadcast(S2CPackets::TurtleConnected(t))
+                .broadcast(S2CPackets::SetTurtles(SetTurtlesData { turtles, world }))
                 .await;
         }
     });
