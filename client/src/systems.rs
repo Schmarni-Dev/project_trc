@@ -48,7 +48,6 @@ pub fn chunk_update_mesh(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    info!("Chunk");
     for (entity, chunk_instance) in query.iter() {
         let mut mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
         do_mesh_shit(&mut mesh, chunk_instance);

@@ -62,6 +62,9 @@ impl ChunkInstance {
     pub fn get_chunk_pos(&self) -> &Pos3 {
         &self.chunk_pos
     }
+    pub fn inner_mut(&mut self) -> &mut ClientChunk {
+        &mut self.chunk_data
+    }
 }
 
 impl Deref for ChunkInstance {
@@ -71,8 +74,8 @@ impl Deref for ChunkInstance {
     }
 }
 
-impl DerefMut for ChunkInstance {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.chunk_data
-    }
-}
+// impl DerefMut for ChunkInstance {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.chunk_data
+//     }
+// }

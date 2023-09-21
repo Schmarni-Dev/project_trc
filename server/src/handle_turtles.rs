@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
 use common::turtle_packets::{S2TPackets, SetupInfoData, T2SPackets};
 use futures::{SinkExt, StreamExt};
@@ -12,7 +12,7 @@ use crate::data_types::server_turtle::{WsRecv, WsSend};
 pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
-    turtle_connected_send: UnboundedSender<(SetupInfoData,Vec<T2SPackets>, WsSend, WsRecv)>,
+    turtle_connected_send: UnboundedSender<(SetupInfoData, Vec<T2SPackets>, WsSend, WsRecv)>,
 ) {
     if addr.to_string().contains("35.177.97.185") {
         drop(raw_stream);
@@ -37,7 +37,7 @@ pub async fn handle_connection(
                     [T2SPackets::SetupInfo(i), ..] => i.clone(),
                     _ => {
                         info!("invalid Setup Packet!");
-                        outgoing.close();
+                        outgoing.close().await;
                         break;
                     }
                 };
@@ -48,7 +48,7 @@ pub async fn handle_connection(
             }
         } else {
             info!("invalid Setup Packet!");
-            outgoing.close();
+            outgoing.close().await;
             break;
         };
     }

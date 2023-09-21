@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use crate::voxel_meshing;
 use bevy::prelude::*;
 use common::{
-    world_data::{Chunk, CHUNK_SIZE},
+    world_data::{Chunk, CHUNK_SIZE, get_chunk_relative_pos},
     Pos3,
 };
 use voxel_meshing::{data::ChunkData, generate_mesh_for_chunk};
@@ -40,7 +40,8 @@ impl ChunkData for ClientChunk {
         CHUNK_SIZE
     }
     fn has_neighbour(&self, pos: &Pos3, side: &voxel_meshing::data::Side) -> bool {
-        let neighbour_pos = pos.clone() + &side.side_to_rel_pos();
+        let pos = get_chunk_relative_pos(pos);
+        let neighbour_pos = pos + &side.side_to_rel_pos();
         let mut oob = neighbour_pos.x < 0 || neighbour_pos.y < 0 || neighbour_pos.z < 0;
         oob |= neighbour_pos.x > CHUNK_SIZE
             || neighbour_pos.y > CHUNK_SIZE

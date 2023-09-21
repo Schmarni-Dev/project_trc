@@ -15,7 +15,12 @@ pub fn get_chunk_containing_block(pos: &Pos3) -> Pos3 {
 }
 
 pub fn get_chunk_relative_pos(pos: &Pos3) -> Pos3 {
-    Pos3::new(pos.x % CHUNK_SIZE, pos.y % CHUNK_SIZE, pos.z % CHUNK_SIZE)
+    // Maybe of by 1
+    Pos3::new(
+        (pos.x + CHUNK_SIZE) % CHUNK_SIZE,
+        (pos.y + CHUNK_SIZE) % CHUNK_SIZE,
+        (pos.z + CHUNK_SIZE) % CHUNK_SIZE,
+    )
 }
 
 #[allow(dead_code)]

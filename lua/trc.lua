@@ -1,12 +1,11 @@
-local util_request = http.get("http://schmerver.mooo.com:63190/files/util.lua")
+local util_request = http.get("http://schmerver.mooo.com:63190/util.lua")
+
 if util_request == nil then return end
 local util_code = util_request.readAll()
 util_request.close()
 if util_code == nil then return end
 ---@module 'util'
 local util = assert(loadstring(util_code))()
-
-
 
 ---@type Queue<any>
 local logs = util.new_queue()
@@ -25,18 +24,14 @@ local function send_blocks(ws)
     ws.send(textutils.serialiseJSON(data))
 end
 
----@param ws Websocket
-local function sendInfo(ws)
-    ---@type Maybe<turtleDetails>[]
-    local items = {}
-    for i = 1, 16, 1 do
-        items[i] = util.maybe(turtle.getItemDetail(i))
-    end
+local world = "test_world_01"
 
-    local data = util.ConstructInfoPacket(items, util.get_label(), os.getComputerID(), turtle.getFuelLevel(),
-        turtle.getFuelLimit())
-    -- textutils.pagedlog(textutils.serialise(data))
-    ws.send(textutils.serialiseJSON(data))
+---@param ws Websocket
+local function sendSetupInfo(ws)
+    local data = util.BatchPackets(util.SetupInfo(world, { x = 0, y = 0, z = 0 }, "North"), util.SetMaxFuel(),
+        util.FuelUpdate(), util.NameUpdate(), util.InventoryUpdate())
+    local json = textutils.serialiseJSON(data)
+    ws.send(json)
 end
 --#endregion
 
@@ -84,8 +79,8 @@ local ws
 
 
 local function handle_ws_messages(msg)
-    if msg == "GetInfo" then
-        sendInfo(ws)
+    if msg == "GetSetupInfo" then
+        sendSetupInfo(ws)
         send_blocks(ws)
     elseif msg.Move then
         ---@diagnostic disable-next-line: unused-local
@@ -142,6 +137,7 @@ end
 
 ---@return string
 local function get_shutdown_message()
+    ---@diagnostic disable-next-line: param-type-mismatch
     math.randomseed(os.time(os.date("*t")) + (os.clock() * 100))
     local words = {
         "Shutting Down",
@@ -186,7 +182,7 @@ local function main()
     )
 end
 local sucsess, value = pcall(main)
-util.term_clear()
+-- util.term_clear()
 print(util.get_logo_string(get_shutdown_message(), " "))
 if not sucsess then
     print("Error:", value)

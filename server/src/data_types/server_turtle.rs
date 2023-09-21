@@ -15,7 +15,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use libsql_client::{args, Client};
+use libsql_client::args;
 #[allow(unused_imports)]
 use log::info;
 use serde_json::{from_str, to_string_pretty};
@@ -81,17 +81,23 @@ impl ServerTurtle {
         match msg {
             T2SPackets::Batch(packets) => {
                 for p in packets {
-                    self.comm(TurtleCommBus::Packet((self.index, p)))
-                        .await?;
+                    self.comm(TurtleCommBus::Packet((self.index, p))).await?;
                 }
             }
             T2SPackets::SetPos(pos) => {
                 self.position = pos;
+
+                info!(
+                    "{}|{}|{}",
+                    pos_to_db_pos(&self.position),
+                    self.index,
+                    &self.world
+                );
                 self.db
                     .exec(
                         "
                     UPDATE turtles SET position = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(*pos_to_db_pos(&self.position), self.index, &self.world),
                     )
@@ -103,7 +109,7 @@ impl ServerTurtle {
                     .exec(
                         "
                     UPDATE turtles SET max_fuel = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(max_fuel, self.index, &self.world),
                     )
@@ -116,7 +122,7 @@ impl ServerTurtle {
                     .exec(
                         "
                     UPDATE turtles SET orientation = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(orient.to_string(), self.index, &self.world),
                     )
@@ -129,7 +135,7 @@ impl ServerTurtle {
                     .exec(
                         "
                     UPDATE turtles SET inventory = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(
                             serde_json::to_string(&self.inventory)?,
@@ -144,7 +150,7 @@ impl ServerTurtle {
                     .exec(
                         "
                     UPDATE turtles SET world = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(&w_name, self.index, &self.world),
                     )
@@ -157,7 +163,7 @@ impl ServerTurtle {
                     .exec(
                         "
                     UPDATE turtles SET name = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(&self.name, self.index, &self.world),
                     )
@@ -169,7 +175,7 @@ impl ServerTurtle {
                     .exec(
                         "
                     UPDATE turtles SET fuel = ? 
-                    WHERE index = ?, world = ?;
+                    WHERE id = ? AND world = ?;
                     ",
                         args!(self.fuel, self.index, &self.world),
                     )
@@ -192,15 +198,15 @@ impl ServerTurtle {
                     MoveDirection::Left => o = self.inner.turn(TurnDir::Left),
                     MoveDirection::Right => o = self.inner.turn(TurnDir::Right),
                 };
-                self.re_packet(T2SPackets::SetPos(p)).await?;
-                self.re_packet(T2SPackets::SetOrientation(o)).await?;
-                _ = self.comm_bus.send(TurtleCommBus::Moved(self.index)).await;
                 self.comm(TurtleCommBus::UpdateBlock(Block::new(
                     None,
-                    &self.position,
+                    &p,
                     &self.world,
                 )))
                 .await?;
+                self.re_packet(T2SPackets::SetPos(p)).await?;
+                self.re_packet(T2SPackets::SetOrientation(o)).await?;
+                _ = self.comm_bus.send(TurtleCommBus::Moved(self.index)).await;
             }
             T2SPackets::Blocks { up, down, front } => {
                 info!("up: {:?}", up);

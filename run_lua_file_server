@@ -1,1 +1,1 @@
-../file_server/target/release/file_server lua
+miniserve -p 63190 lua

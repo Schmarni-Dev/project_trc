@@ -38,7 +38,7 @@ pub struct DB {
 }
 
 fn parse_turtle_instance_from_row(row: &Row) -> anyhow::Result<Turtle> {
-    let index: i32 = parse_i64_from_row(&row, "index")?.try_into()?;
+    let index: i32 = parse_i64_from_row(&row, "id")?.try_into()?;
     let name = parse_string_from_row(&row, "name")?;
     let inv = serde_json::from_str(&parse_string_from_row(&row, "inventory")?)?;
     let pos = parse_pos3_from_row(&row, "position")?;
@@ -102,25 +102,24 @@ impl DB {
         db.execute(
             "
         CREATE TABLE IF NOT EXISTS turtles (
-            index INTEGER NOT NULL,
+            id INTEGER NOT NULL,
             name TEXT NOT NULL,
             inventory TEXT NOT NULL,
             position TEXT NOT NULL,
             orientation TEXT NOT NULL,
-            fuel FLOAT NOT NULL,
+            fuel INTEGER NOT NULL,
             max_fuel INTEGER NOT NULL,
             world TEXT NOT NULL,
-            PRIMARY KEY (world,index),
+            PRIMARY KEY (world,id),
             FOREIGN KEY (world)
                 REFERENCES worlds (name)
         );",
         )
         .await?;
-        info!("turtles");
         db.execute(
             "
         CREATE TABLE IF NOT EXISTS worlds (
-            name TEXT NOT NULL PRIMARY KEY
+            name TEXT NOT NULL UNIQUE PRIMARY KEY
         );",
         )
         .await?;
@@ -141,26 +140,55 @@ impl DB {
         Ok(DB { client: db })
     }
 
-    async fn insert_turtle(&self, turtle: Turtle) -> anyhow::Result<()> {
+    async fn insert_turtle(&self, turtle: &Turtle) -> anyhow::Result<()> {
         self.exec(
             "INSERT INTO turtles VALUES (?,?,?,?,?,?,?,?)",
             args!(
                 turtle.index,
-                turtle.name,
+                &turtle.name,
                 serde_json::to_string(&turtle.inventory)?,
                 *pos_to_db_pos(&turtle.position),
                 turtle.orientation.to_string(),
                 turtle.fuel,
                 turtle.max_fuel,
-                turtle.world
+                &turtle.world
             ),
         )
         .await?;
         Ok(())
     }
 
+    pub async fn get_dummy_turtle(
+        &self,
+        index: TurtleIndexType,
+        world: String,
+        pos: Pos3,
+        orientation: Orientation,
+    ) -> anyhow::Result<Turtle> {
+        let t = Turtle::new_dummy(index, world, pos, orientation);
+        self.insert_turtle(&t).await?;
+        Ok(t)
+    }
+
+    pub async fn get_worlds(&self) -> anyhow::Result<Vec<String>> {
+        Ok(self
+            .client
+            .execute("SELECT name FROM worlds;")
+            .await?
+            .rows
+            .into_iter()
+            .flat_map(|row| row.values)
+            .filter_map(|value| match value {
+                Value::Text { value } => Some(value),
+                _ => None,
+            })
+            .collect())
+    }
+
     pub async fn create_world(&self, name: &str) -> anyhow::Result<()> {
-        todo!()
+        self.exec("INSERT OR IGNORE INTO worlds VALUES (?);", args!(name))
+            .await?;
+        Ok(())
     }
 
     pub async fn get_world(&self, name: &str) -> anyhow::Result<World> {
@@ -186,7 +214,7 @@ impl DB {
         let w = self
             .client
             .execute(S::with_args(
-                "SELECT * FROM turtles WHERE index = ? AND world = ?; ",
+                "SELECT * FROM turtles WHERE id = ? AND world = ?; ",
                 args!(index, world_name),
             ))
             .await?;

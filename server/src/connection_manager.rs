@@ -53,13 +53,36 @@ pub async fn main(
                             t.move_(direction).await;
                         }
                     }
-                    C2SPackets::RequestTurtles => {
+                    C2SPackets::RequestTurtles(world) => {
+                        let mut online_turtles = local_server_turtles
+                            .lock()
+                            .await
+                            .get_common_turtles()
+                            .into_iter()
+                            .map(|mut t| {
+                                t.is_online = true;
+                                t
+                            })
+                            .filter(|t| t.world == world)
+                            .collect::<Vec<_>>();
+                        let indexes = online_turtles.iter().map(|t| t.index).collect::<Vec<_>>();
+                        let mut turtles = match local_db.get_turtles(&world).await {
+                            Ok(t) => t
+                                .into_iter()
+                                .filter(|t| indexes.contains(&t.index))
+                                .collect(),
+                            Err(err) => {
+                                error!("{err}");
+                                Vec::new()
+                            }
+                        };
+                        turtles.append(&mut online_turtles);
                         local_server_clients
                             .lock()
                             .await
                             .send_to(
                                 S2CPackets::SetTurtles(
-                                    local_server_turtles.lock().await.get_common_turtles(),
+                                    turtles
                                 ),
                                 &client_index,
                             )
@@ -73,6 +96,20 @@ pub async fn main(
                                 S2CPackets::SetWorld(local_db.get_world(&name).await.unwrap()),
                                 &client_index,
                             )
+                            .await;
+                    }
+                    C2SPackets::RequestWorlds => {
+                        let worlds = match local_db.clone().get_worlds().await {
+                            Ok(o) => o,
+                            Err(e) => {
+                                error!("{e}");
+                                Vec::new()
+                            }
+                        };
+                        local_server_clients
+                            .lock()
+                            .await
+                            .send_to(S2CPackets::Worlds(worlds), &client_index)
                             .await;
                     }
                 },
@@ -150,9 +187,10 @@ pub async fn main(
 
             let t = match db.get_turtle(info.index, &info.world).await {
                 Ok(turtle) => turtle,
-                Err(DBError::NotFound) => {
-                    Turtle::new_dummy(info.index, info.world, info.position, info.facing)
-                }
+                Err(DBError::NotFound) => db
+                    .get_dummy_turtle(info.index, info.world, info.position, info.facing)
+                    .await
+                    .unwrap(),
                 Err(DBError::Error(err)) => {
                     error!("{}", err);
                     send.close().await;
@@ -162,7 +200,7 @@ pub async fn main(
 
             let mut st =
                 ServerTurtle::new(t, send, recv, turtle_comms_tx.clone(), db.clone()).await;
-            st.on_msg_recived(T2SPackets::Batch(data)).await;
+            st.on_msg_recived(T2SPackets::Batch(data)).await.unwrap();
             let t: Turtle = st.to_owned();
             server_turtles.push(st);
             local_server_clients

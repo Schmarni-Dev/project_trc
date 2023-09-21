@@ -1,12 +1,12 @@
 #[allow(unused_imports)]
 use bevy::log::prelude::*;
-use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
+use bevy::{pbr::DirectionalLightShadowMap, prelude::*, render::texture::ImageSampler};
+use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiSettings};
 use common::{
     client_packets::{C2SPackets, S2CPackets},
     turtle::MoveDirection,
-    world_data::{get_chunk_containing_block, Chunk, World},
+    world_data::{get_chunk_containing_block, Chunk},
 };
-use futures::executor::block_on;
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
@@ -23,11 +23,21 @@ use trc_client::{
     ws::WS,
 };
 
+#[derive(Resource)]
+pub struct WorldState {
+    curr_world: Option<String>,
+    worlds: Vec<String>,
+}
+
 fn main() {
     App::new()
         .insert_resource(AmbientLight {
             color: Color::WHITE,
             brightness: 1.0 / 5.0f32,
+        })
+        .insert_resource(WorldState {
+            curr_world: None,
+            worlds: Vec::new(),
         })
         .insert_resource(DirectionalLightShadowMap::default())
         .add_plugins(DefaultPlugins)
@@ -36,18 +46,85 @@ fn main() {
         .add_plugins(Systems)
         .add_plugins(WS)
         .add_plugins(EventsPlugin)
+        .add_plugins(EguiPlugin)
         .add_event::<SpawnTurtle>()
         .add_event::<SpawnChunk>()
         .add_systems(Startup, setup)
+        .add_systems(Startup, ui_setup)
         .add_systems(Update, setup_turtles)
         .add_systems(Update, turtle_spawner)
         .add_systems(Update, handle_chunk_spawning)
-        .add_systems(Update, hanlde_world_updates)
+        .add_systems(
+            Update,
+            hanlde_world_updates.run_if(should_handle_world_updates),
+        )
         .add_systems(Update, set_world_on_event)
         .add_systems(Update, animate_light_direction)
         .add_systems(Update, test)
         .add_systems(Update, input::orbit_input_map)
+        .add_systems(Update, ui)
+        .add_systems(Update, update_worlds)
+        .add_systems(PreUpdate, handle_world_selection_updates)
         .run();
+}
+
+fn handle_world_selection_updates(
+    worlds: Res<WorldState>,
+    mut old: Local<Option<String>>,
+    mut ws_writer: EventWriter<C2SPackets>,
+) {
+    if worlds.curr_world != *old {
+        if let Some(curr) = &worlds.curr_world {
+            ws_writer.send(C2SPackets::RequestWorld(curr.to_owned()));
+            ws_writer.send(C2SPackets::RequestTurtles(curr.to_owned()));
+        }
+    }
+    *old = worlds.curr_world.clone();
+}
+
+fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>) {
+    for p in ws.iter() {
+        match p {
+            S2CPackets::Worlds(w) => {
+                worlds.curr_world = w.first().cloned();
+                worlds.worlds = w.to_owned();
+            }
+            _ => (),
+        }
+    }
+}
+fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
+    egui_settings.scale_factor = 1.5;
+    egui_settings.sampler_descriptor = ImageSampler::default();
+}
+
+fn ui(mut worlds: ResMut<WorldState>, mut contexts: EguiContexts) {
+    egui::TopBottomPanel::top("TRC").show(contexts.ctx_mut(), move |ui| {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                let mut c = egui::ComboBox::from_label("World");
+                if let Some(w) = &worlds.curr_world {
+                    c = c.selected_text(w);
+                }
+            
+                c.show_ui(ui, |ui| {
+                    ui.style_mut().wrap = Some(false);
+                    ui.set_min_width(60.0);
+                    // Hateble (the clone here)
+                    for w in worlds.worlds.clone().iter() {
+                        ui.selectable_value(&mut worlds.curr_world, Some(w.to_owned()), w);
+                    }
+                });
+            });
+            ui.add(
+                custom_egui_widgets::CircleDisplay::new()
+                    .size(2.0)
+                    .stroke_width(4.0)
+                    .font_size(20.0)
+                    .build(&3, &30),
+            );
+        });
+    });
 }
 
 fn test(
@@ -57,11 +134,6 @@ fn test(
     mut active_turtle_res: ResMut<ActiveTurtleRes>,
     turtles: Query<&TurtleInstance>,
 ) {
-    // if input.just_pressed(KeyCode::T) {
-    //     info!("RESETING THE WS CONNECTION!!!");
-    //     let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
-    //     commands.insert_resource(ws_communitcator);
-    // };
     if input.just_pressed(KeyCode::Period) {
         active_turtle_res.0 += 1;
         active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
@@ -168,8 +240,7 @@ fn setup(
     });
     commands.insert_resource(ActiveTurtleRes(0));
     commands.insert_resource(ChunkMat(materials.add(Color::rgb(1., 1., 1.).into())));
-    ws_writer.send(C2SPackets::RequestTurtles);
-    ws_writer.send(C2SPackets::RequestWorld("test_world_01".into()));
+    ws_writer.send(C2SPackets::RequestWorlds);
 }
 
 fn set_world_on_event(
@@ -191,9 +262,14 @@ fn set_world_on_event(
     }
 }
 
+fn should_handle_world_updates(event: EventReader<S2CPackets>) -> bool {
+    let o = event.len() > 0;
+    o
+}
+
 fn hanlde_world_updates(
-    mut query: Query<&mut ChunkInstance>,
     mut event: EventReader<S2CPackets>,
+    mut query: Query<&mut ChunkInstance>,
     mut chunk_spawn: EventWriter<SpawnChunk>,
 ) {
     for e in event.iter() {
@@ -204,8 +280,7 @@ fn hanlde_world_updates(
                 .find(|chunk| chunk.get_chunk_pos() == &chunk_pos)
             {
                 Some(mut chunk) => {
-                    info!("pos: {:#?}", block.get_name());
-                    chunk.set_block(block.clone());
+                    chunk.inner_mut().set_block(block.clone());
                 }
                 None => {
                     let mut chunk = Chunk::new(chunk_pos);

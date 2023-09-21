@@ -16,11 +16,13 @@ end
 --- |"Left"
 --- |"Right"
 
+local M = {}
+
 ---Creates a maybe table for json
 ---@generic T
 ---@param val T | nil
 ---@return Maybe<T>
-local function maybe(val)
+function M.maybe(val)
     if type(val) == "nil" then
         return "None"
     end
@@ -30,7 +32,7 @@ end
 ---@generic T: (number | integer)
 ---@param num T|"unlimited"
 ---@return T
-local function fix_num_or_unlimited(num)
+function M.fix_num_or_unlimited(num)
     if num == "unlimited" then
         return -1
     end
@@ -42,42 +44,108 @@ end
 ---@param bool boolean
 ---@return Maybe<T>
 --
-local function get_maybe_using_bool(bool, val)
+function M.get_maybe_using_bool(bool, val)
     local data = val
     if bool == false then
         data = nil
     end
-    return maybe(data)
+    return M.maybe(data)
 end
 
+---@alias pos3 {x:integer,y:integer,z:integer}
+---@alias orienation
+---Towards -Z
+---| "North"
+---Towards +X
+---| "East"
+---Towards +Z
+---| "South"
+---Towards -X
+---| "West"
+
+
 --#region Packet Build Functions
----@param items Maybe<turtleDetails>[]
----@param name string
----@param index integer
----@param fuel number | "unlimited"
----@param max_fuel integer | "unlimited"
-local function ConstructInfoPacket(items, name, index, fuel, max_fuel)
+---@param world string
+---@param position pos3
+---@param facing orienation
+function M.SetupInfo(world, position, facing)
     return {
-        Info = {
-            inventory = { inv = items },
-            name = name,
-            index = index,
-            fuel = fix_num_or_unlimited(fuel),
-            max_fuel = fix_num_or_unlimited(max_fuel)
+        SetupInfo = {
+            index = os.getComputerID(),
+            position = position,
+            world = world,
+            facing = facing
         }
     }
+end
+
+---@return packet
+function M.SetMaxFuel()
+    return { SetMaxFuel = M.fix_num_or_unlimited(turtle.getFuelLimit()) }
+end
+
+---@param pos pos3
+---@return packet
+function M.SetPos(pos)
+    return { SetPos = pos }
+end
+
+---@param orient orienation
+--
+---@return packet
+function M.SetOrientation(orient)
+    return { SetOrientation = orient }
+end
+
+---@param world_name string
+---@return packet
+function M.UpdateWorld(world_name)
+    return { WorldUpdate = world_name }
+end
+
+---@return packet
+function M.InventoryUpdate()
+    ---@type Maybe<turtleDetails>[]
+    local items = {}
+    for i = 1, 16, 1 do
+        items[i] = M.maybe(turtle.getItemDetail(i))
+    end
+    return { InventoryUpdate = { inv = items } }
+end
+
+---@return packet
+function M.NameUpdate()
+    return { NameUpdate = M.get_label() }
+end
+
+---@return packet
+function M.FuelUpdate()
+    return { FuelUpdate = M.fix_num_or_unlimited(turtle.getFuelLevel()) }
+end
+
+---@class packet
+
+---@param ... packet
+---@return packet
+---@diagnostic disable-next-line: unused-vararg
+function M.BatchPackets(...)
+    local stuff = {}
+    for i, v in ipairs(arg) do
+        stuff[i] = v
+    end
+    return { Batch = stuff }
 end
 
 ---@param up Maybe<string>
 ---@param down Maybe<string>
 ---@param front Maybe<string>
-local function ConstructBlocksPacket(up, down, front)
+function M.ConstructBlocksPacket(up, down, front)
     return { Blocks = { up, down, front } }
 end
 
 ---@param data string | inspectInfo
 ---@return string
-local function fix_inspect(data)
+function M.fix_inspect(data)
     if type(data) == "string" then
         return data
     end
@@ -85,7 +153,7 @@ local function fix_inspect(data)
 end
 
 ---@param msg table | string
-local function print_msg(msg)
+function M.print_msg(msg)
     if type(msg) == "string" then
         log(msg)
     else
@@ -94,7 +162,7 @@ local function print_msg(msg)
 end
 
 ---@return string
-local function get_label()
+function M.get_label()
     local label = os.getComputerLabel()
     if label == nil then
         label = ""
@@ -105,8 +173,8 @@ end
 ---@param exits boolean
 ---@param data string | inspectInfo
 ---@return Maybe<string>
-local function process_inspect(exits, data)
-    return get_maybe_using_bool(exits, fix_inspect(data))
+function M.process_inspect(exits, data)
+    return M.get_maybe_using_bool(exits, M.fix_inspect(data))
 end
 
 ---@class Queue<T>: { [ integer ]:T, first: integer, last: integer, push: fun(self: Queue<T>,item: T), pop_handler: fun(self: Queue<T>,callback: fun(value: T)), get_amount_in_queue: fun(self: Queue<T>): integer }
@@ -114,7 +182,7 @@ end
 
 ---@generic T
 ---@return Queue<T>
-local function new_queue()
+function M.new_queue()
     ---@generic T
     ---@type Queue<T>
     local Queue = { first = 0, last = 0 }
@@ -153,7 +221,7 @@ end
 ---@param f fun()
 ---@param dont_yield boolean?
 ---@return fun()
-local function loop(f, dont_yield)
+function M.loop(f, dont_yield)
     local dy = dont_yield or false
     return function()
         while true do
@@ -168,7 +236,7 @@ end
 ---@param logo string
 ---@param spacer string
 ---@return string
-local function get_logo_string(logo, spacer)
+function M.get_logo_string(logo, spacer)
     local width = term.getSize()
     local adjusted_width = width - logo:len()
     local pad_string = string.rep(spacer, adjusted_width / (spacer:len() * 2))
@@ -176,7 +244,7 @@ local function get_logo_string(logo, spacer)
 end
 
 ---@param f fun()
-local function set_terminate_handler(f)
+function M.set_terminate_handler(f)
     ---@diagnostic disable-next-line: lowercase-global
     pull = os.pullEvent
     local function handler(e)
@@ -190,29 +258,13 @@ local function set_terminate_handler(f)
     os.pullEvent = handler
 end
 
-local function reset_event_handler()
+function M.reset_event_handler()
     os.pullEvent = pull
 end
 
-local function term_clear()
+function M.term_clear()
     term.clear()
     term.setCursorPos(1, 1)
 end
 
-return {
-    maybe = maybe,
-    ConstructBlocksPacket = ConstructBlocksPacket,
-    ConstructInfoPacket = ConstructInfoPacket,
-    process_inspect = process_inspect,
-    get_label = get_label,
-    fix_inspect = fix_inspect,
-    fix_num_or_unlimited = fix_num_or_unlimited,
-    print_msg = print_msg,
-    get_maybe_using_bool = get_maybe_using_bool,
-    new_queue = new_queue,
-    loop = loop,
-    get_logo_string = get_logo_string,
-    set_terminate_handler = set_terminate_handler,
-    term_clear = term_clear,
-    reset_event_handler = reset_event_handler,
-}
+return M

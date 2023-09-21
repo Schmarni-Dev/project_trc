@@ -3,7 +3,7 @@ use bevy::prelude::*;
 pub struct EventsPlugin;
 #[derive(Event)]
 pub struct ActiveTurtleChanged(pub i32);
-#[derive(Resource)]
+#[derive(Resource,Deref,DerefMut)]
 pub struct ActiveTurtleRes(pub i32);
 
 impl Plugin for EventsPlugin {

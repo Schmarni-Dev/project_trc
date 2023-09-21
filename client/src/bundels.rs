@@ -20,13 +20,11 @@ impl ChunkBundle {
         meshes: &mut ResMut<Assets<Mesh>>,
         material: Handle<StandardMaterial>,
     ) -> ChunkBundle {
-        info!("HELLO CHUNK!");
         let pos = chunk.get_chunk_pos();
         let mut mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
         do_mesh_shit(&mut mesh, &chunk);
         let end_pos = pos3_to_vec3(pos.scale(CHUNK_SIZE));
         let lerp_pos = end_pos - vec3(0., CHUNK_SIZE as f32, 0.);
-        info!("pos: {:#?}", lerp_pos);
         let mut lerp_comp = LerpTransform::new(lerp_pos, Quat::IDENTITY);
         lerp_comp.lerp_pos_to(end_pos, 0.5);
         ChunkBundle {
