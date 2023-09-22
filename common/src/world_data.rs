@@ -1,5 +1,5 @@
-use crate::{turtle::Maybe, Pos3};
-use bevy::prelude::info;
+use crate::{Pos3};
+
 use serde::{Deserialize, Serialize};
 
 use super::vec3d::Vec3D;

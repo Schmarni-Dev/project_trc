@@ -2,15 +2,14 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use axum::{
-    extract::{State, WebSocketUpgrade},
-    response::Response,
+    extract::{State},
     routing::{get, post},
     Json, Router,
 };
 use backend::{db::DB, *};
 use common::turtle_packets::{SetupInfoData, T2SPackets};
 
-use futures_channel::mpsc::UnboundedSender;
+
 use futures_util::{
     pin_mut,
     stream::{SplitSink, SplitStream},

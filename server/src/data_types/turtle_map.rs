@@ -14,7 +14,7 @@ impl TurtleMap {
         TurtleMap(HashMap::new())
     }
     pub fn push(&mut self, turtle: ServerTurtle) -> &mut Self {
-        info!("Registering Turtle: {}, {}",&turtle.world, &turtle.index);
+        info!("Registering Turtle: {}, {}", &turtle.world, &turtle.index);
         self.0.insert(turtle.get_instance_id(), turtle);
         self
     }
@@ -26,6 +26,19 @@ impl TurtleMap {
     }
     pub fn get_turtle_mut(&mut self, id: i32) -> Option<&mut ServerTurtle> {
         self.0.get_mut(&id)
+    }
+
+    pub fn get_turtle_mut_id_and_world(
+        &mut self,
+        index: i32,
+        world: &str,
+    ) -> Option<&mut ServerTurtle> {
+        self.0
+            .iter_mut()
+            .find_map(|(_, t)| match t.index == index && t.world == world {
+                false => None,
+                true => Some(t),
+            })
     }
     pub fn drop_turtle(&mut self, id: &i32) {
         if let Some(t) = self.0.remove(id) {

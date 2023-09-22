@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bevy::prelude::{DerefMut, Deref};
 use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
@@ -19,8 +20,9 @@ impl<T> Into<Option<T>> for Maybe<T> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone,Deref,DerefMut)]
 pub struct Inventory {
+    #[deref]
     inv: [Maybe<Item>; 16],
 }
 
@@ -63,8 +65,8 @@ impl IntoIterator for Inventory {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Item {
-    count: u8,
-    name: String,
+    pub count: u8,
+    pub name: String,
 }
 
 pub type TurtleIndexType = i32;

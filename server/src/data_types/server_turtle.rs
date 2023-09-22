@@ -84,6 +84,7 @@ impl ServerTurtle {
     }
 
     pub async fn on_msg_recived(&mut self, msg: T2SPackets) -> anyhow::Result<()> {
+        info!("msg");
         match msg {
             T2SPackets::Batch(packets) => {
                 for p in packets {
@@ -253,6 +254,7 @@ impl ServerTurtle {
     }
 
     pub async fn move_(&mut self, dir: MoveDirection) {
+        info!("{dir:#?}");
         self.send_ws(S2TPackets::Move(vec![dir])).await;
     }
 

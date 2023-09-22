@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::server_client::ServerClient;
 use common::client_packets::S2CPackets;
-use log::info;
+
 
 pub struct DosentExist;
 

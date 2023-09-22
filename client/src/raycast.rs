@@ -1,12 +1,12 @@
-use bevy::{prelude::*, render::camera::RenderTarget};
+use bevy::{prelude::*};
 use common::world_data::get_chunk_containing_block;
 
-use crate::{util::{pos3_to_vec3, vec3_to_pos3}, components::ChunkInstance};
+use crate::{util::{vec3_to_pos3}, components::ChunkInstance};
 
 pub struct RaycastPlugin;
 
 impl Plugin for RaycastPlugin {
-    fn build(&self, app: &mut App) {}
+    fn build(&self, _app: &mut App) {}
 }
 
 fn my_cursor_system(
@@ -28,7 +28,7 @@ fn my_cursor_system(
                 for distance in 0..100 {
                     let pos = vec3_to_pos3(ray.get_point(distance as f32).floor());
         let c_pos = get_chunk_containing_block(&pos);
-                    let chunk = chunk_q.iter().find(|chunk| chunk.get_chunk_pos() == &c_pos);
+                    let _chunk = chunk_q.iter().find(|chunk| chunk.get_chunk_pos() == &c_pos);
 
                 }
             });

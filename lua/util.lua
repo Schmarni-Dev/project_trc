@@ -200,9 +200,8 @@ function M.copy(obj, seen)
   return res
 end
 
-
 ---@type nil | Websocket
-NetworkedTurtleMoveWebsocket = nil
+NetworkedTurtleMoveWebsocket = NetworkedTurtleMoveWebsocket
 
 local networked_turtle_movments = M.copy(turtle)
 ---@return boolean, string | nil

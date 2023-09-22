@@ -1,22 +1,19 @@
 use common::turtle::{Orientation, Turtle, TurtleIndexType};
-use common::turtle_packets::SetupInfoData;
+
 use common::world_data::{get_chunk_containing_block, Block, World};
 use common::Pos3;
-use libsql_client::{args, Client, ResultSet, Row, Statement};
+use libsql_client::{args, Client, ResultSet, Row};
 use libsql_client::{Statement as S, Value};
-use log::{info, warn};
+
 use serde::{Deserialize, Serialize};
-use serde_json::de::from_str;
-use serde_json::ser::to_string_pretty;
-use std::cell::OnceCell;
-use std::rc::Rc;
+
+
+
+
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{
     collections::HashMap,
-    fs::File,
-    io::{Read, Write},
-    path::{Path, PathBuf},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -264,7 +261,7 @@ impl DB {
     }
 
     /// Unsure
-    pub fn turtle_exists(&self, index: TurtleIndexType) -> bool {
+    pub fn turtle_exists(&self, _index: TurtleIndexType) -> bool {
         todo!()
     }
 }

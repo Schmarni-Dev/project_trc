@@ -1,17 +1,21 @@
 #[allow(unused_imports)]
 use bevy::log::prelude::*;
 use bevy::{pbr::DirectionalLightShadowMap, prelude::*, render::texture::ImageSampler};
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiSettings};
+use bevy_egui::{
+    egui::{self, Color32, Grid},
+    EguiContexts, EguiPlugin, EguiSettings,
+};
 use common::{
     client_packets::{C2SPackets, S2CPackets, SetTurtlesData},
-    turtle::MoveDirection,
+    turtle::{Maybe, MoveDirection},
     world_data::{get_chunk_containing_block, Chunk},
 };
+use custom_egui_widgets::item_box::item_box;
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
-use std::f32::consts::FRAC_PI_4;
+use std::{f32::consts::FRAC_PI_4, sync::mpsc};
 use trc_client::input;
 use trc_client::{
     bundels::ChunkBundle,
@@ -64,7 +68,8 @@ fn main() {
         .add_systems(Update, input::orbit_input_map)
         .add_systems(Update, ui)
         .add_systems(Update, update_worlds)
-        .add_systems(PreUpdate, handle_world_selection_updates)
+        .add_systems(Update, turtle_stuff_update)
+        .add_systems(Update, handle_world_selection_updates)
         .run();
 }
 
@@ -95,7 +100,48 @@ fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>
 }
 fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.scale_factor = 1.5;
-    egui_settings.sampler_descriptor = ImageSampler::default();
+}
+
+fn turtle_stuff_update(
+    world_state: Res<WorldState>,
+    mut turtles: Query<&mut TurtleInstance>,
+    mut ws_reader: EventReader<S2CPackets>,
+) {
+    for p in ws_reader.iter() {
+        match p {
+            S2CPackets::TurtleInventoryUpdate(data) => {
+                if world_state
+                    .curr_world
+                    .as_ref()
+                    .is_some_and(|w| w == &data.world)
+                {
+                    turtles
+                        .iter_mut()
+                        .find(|t| t.index == data.index)
+                        .iter_mut()
+                        .for_each(|t| {
+                            t.inventory = data.data.clone();
+                        });
+                }
+            }
+            S2CPackets::TurtleFuelUpdate(data) => {
+                if world_state
+                    .curr_world
+                    .as_ref()
+                    .is_some_and(|w| w == &data.world)
+                {
+                    turtles
+                        .iter_mut()
+                        .find(|t| t.index == data.index)
+                        .iter_mut()
+                        .for_each(|t| {
+                            t.fuel = data.data.clone();
+                        });
+                }
+            }
+            _ => (),
+        }
+    }
 }
 
 fn ui(
@@ -155,6 +201,40 @@ fn ui(
             }
         });
     });
+    if let Some(t) = curr_turtle.as_ref() {
+        let (tx, rx) = mpsc::channel();
+        egui::Window::new("Inventory").show(contexts.ctx_mut(), |ui| {
+            let inv = t.inventory.iter().zip(0u8..16u8);
+            ui.group(|ui| {
+                Grid::new("inv_grid").show(ui, |ui| {
+                    for (item, i) in inv {
+                        match item {
+                            Maybe::None => {
+                                ui.add(item_box(
+                                    0,
+                                    "".into(),
+                                    Color32::LIGHT_GRAY,
+                                    1.0,
+                                    i + 1,
+                                    tx.clone(),
+                                ));
+                            }
+                            Maybe::Some(it) => {
+                                ui.add(item_box(
+                                    it.count,
+                                    it.name.clone().into(),
+                                    Color32::LIGHT_GREEN,
+                                    1.0,
+                                    i + 1,
+                                    tx.clone(),
+                                ));
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
 }
 
 fn test(
@@ -163,6 +243,7 @@ fn test(
     mut ws_writer: EventWriter<C2SPackets>,
     mut active_turtle_res: ResMut<ActiveTurtleRes>,
     turtles: Query<&TurtleInstance>,
+    world_state: Res<WorldState>
 ) {
     if input.just_pressed(KeyCode::Period) {
         active_turtle_res.0 += 1;
@@ -175,36 +256,42 @@ fn test(
     let valid_active_turtle = turtles.iter().any(|t| t.index == active_turtle_res.0);
     if input.just_pressed(KeyCode::W) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Forward,
         })
     };
     if input.just_pressed(KeyCode::S) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Back,
         })
     };
     if input.just_pressed(KeyCode::A) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Left,
         })
     };
     if input.just_pressed(KeyCode::D) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Right,
         })
     };
     if input.just_pressed(KeyCode::E) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Up,
         })
     };
     if input.just_pressed(KeyCode::Q) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Down,
         })
@@ -224,6 +311,7 @@ fn setup_turtles(
             S2CPackets::SetTurtles(SetTurtlesData { turtles, world }) => {
                 if world_state.curr_world.as_ref().is_some_and(|w| w == &world) {
                     query.for_each(|entity| {
+                        info!("{entity:#?}");
                         commands.entity(entity).despawn();
                     });
                     turtles.into_iter().for_each(|t| {

@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use crate::data_types::client_map;
 
@@ -6,14 +6,14 @@ use crate::data_types::server_client::{ClientComms, ServerClient};
 use crate::data_types::server_turtle::{ServerTurtle, WsRecv, WsSend};
 use crate::data_types::turtle_map::TurtleMap;
 use crate::db::{DBError, DB};
-use chrono::Duration;
+
 use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets, SetTurtlesData};
-use common::turtle::{Orientation, Turtle};
+use common::turtle::Turtle;
 use common::turtle_packets::{SetupInfoData, T2SPackets};
 use common::world_data::Block;
-use common::Pos3;
+
 use futures_channel::mpsc::unbounded;
-use futures_util::stream::{SplitSink, SplitStream};
+
 use futures_util::{pin_mut, SinkExt, StreamExt};
 use log::{error, info};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -24,6 +24,8 @@ pub enum TurtleCommBus {
     Packet((i32, T2SPackets)),
     Moved(i32),
     RemoveMe(i32),
+    InvUpdate(i32),
+    FuelUpdate(i32),
     UpdateBlock(Block),
 }
 
@@ -53,8 +55,16 @@ pub async fn main(
                         .await;
                 }
                 ClientComms::Packet(packet) => match packet {
-                    C2SPackets::MoveTurtle { index, direction } => {
-                        if let Some(t) = local_server_turtles.lock().await.get_turtle_mut(index) {
+                    C2SPackets::MoveTurtle {
+                        index,
+                        world,
+                        direction,
+                    } => {
+                        if let Some(t) = local_server_turtles
+                            .lock()
+                            .await
+                            .get_turtle_mut_id_and_world(index, &world)
+                        {
                             t.move_(direction).await;
                         }
                     }
@@ -142,9 +152,10 @@ pub async fn main(
                     let sts = local_server_turtles.lock().await;
                     let t = sts.get_turtle(index).unwrap();
                     let msg = MovedTurtleData {
-                        index,
+                        index: t.index,
                         new_orientation: t.orientation,
                         new_pos: t.position,
+                        world: t.world.clone(),
                     };
                     local_server_clients
                         .lock()
@@ -159,6 +170,40 @@ pub async fn main(
                         .await
                         .broadcast(S2CPackets::WorldUpdate(block))
                         .await;
+                }
+                TurtleCommBus::InvUpdate(index) => {
+                    let sts = local_server_turtles.lock().await;
+                    let t = sts.get_turtle(index);
+                    if let Some(t) = t {
+                        local_server_clients
+                            .lock()
+                            .await
+                            .broadcast(S2CPackets::TurtleInventoryUpdate(
+                                common::client_packets::UpdateTurtleData {
+                                    index: t.index,
+                                    world: t.world.clone(),
+                                    data: t.inventory.clone(),
+                                },
+                            ))
+                            .await;
+                    }
+                }
+                TurtleCommBus::FuelUpdate(index) => {
+                    let sts = local_server_turtles.lock().await;
+                    let t = sts.get_turtle(index);
+                    if let Some(t) = t {
+                        local_server_clients
+                            .lock()
+                            .await
+                            .broadcast(S2CPackets::TurtleFuelUpdate(
+                                common::client_packets::UpdateTurtleData {
+                                    index: t.index,
+                                    world: t.world.clone(),
+                                    data: t.fuel,
+                                },
+                            ))
+                            .await;
+                    }
                 }
             }
         }
@@ -205,10 +250,9 @@ pub async fn main(
             st.on_msg_recived(T2SPackets::Batch(data)).await.unwrap();
             let t: Turtle = st.to_owned();
             server_turtles.push(st);
+            info!("???");
             let world = t.world;
-            let mut online_turtles = local_server_turtles
-                .lock()
-                .await
+            let mut online_turtles = server_turtles
                 .get_common_turtles()
                 .into_iter()
                 .map(|mut t| {
@@ -221,7 +265,7 @@ pub async fn main(
             let mut turtles = match local_db.get_turtles(&world).await {
                 Ok(t) => t
                     .into_iter()
-                    .filter(|t| indexes.contains(&t.index))
+                    .filter(|t| !indexes.contains(&t.index))
                     .collect(),
                 Err(err) => {
                     error!("{err}");
@@ -229,7 +273,7 @@ pub async fn main(
                 }
             };
             turtles.append(&mut online_turtles);
-            info!("{turtles:#?}");
+            info!("connect set turtles{turtles:#?}");
             local_server_clients
                 .lock()
                 .await

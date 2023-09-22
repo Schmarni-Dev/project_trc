@@ -1,4 +1,4 @@
-use bevy::{prelude::*, scene::SceneInstance};
+use bevy::{prelude::*};
 use common::client_packets::S2CPackets;
 use smooth_bevy_cameras::LookTransform;
 
@@ -87,7 +87,7 @@ pub fn update_turtle_model(
             commands
                 .entity(entity)
                 .remove::<Handle<Scene>>()
-                .insert(models.get_correct_mdl(t.index == e.0));
+                .insert(models.get_correct_mdl(t.index == e.0 && t.is_online));
         });
     }
 }
@@ -101,7 +101,7 @@ pub fn move_turtle(
         query
             .iter_mut()
             .filter(|(t, _)| t.index == e.index)
-            .for_each(|(t, mut lerp)| {
+            .for_each(|(_t, mut lerp)| {
                 lerp.lerp_pos_to(pos3_to_vec3(e.new_pos) + Vec3::splat(0.5), TURTLE_LERP_TIME);
                 // let w = quat_from_dir(pos3_to_vec3(t.orientation.get_forward_vec()), Vec3::Y);
                 let r = quat_from_dir(pos3_to_vec3(e.new_orientation.get_forward_vec()), Vec3::Y);
