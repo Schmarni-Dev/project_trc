@@ -1,4 +1,4 @@
-use std::ops::{Deref};
+use std::ops::Deref;
 
 use bevy::prelude::*;
 use common::Pos3;
@@ -50,6 +50,7 @@ impl LerpTransform {
 pub struct ChunkInstance {
     chunk_pos: Pos3,
     chunk_data: ClientChunk,
+    pub setup: bool,
 }
 
 impl ChunkInstance {
@@ -57,6 +58,7 @@ impl ChunkInstance {
         ChunkInstance {
             chunk_pos,
             chunk_data,
+            setup: true,
         }
     }
     pub fn get_chunk_pos(&self) -> &Pos3 {
@@ -73,9 +75,3 @@ impl Deref for ChunkInstance {
         &self.chunk_data
     }
 }
-
-// impl DerefMut for ChunkInstance {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.chunk_data
-//     }
-// }

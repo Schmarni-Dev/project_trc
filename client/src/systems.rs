@@ -1,4 +1,4 @@
-use bevy::{prelude::*};
+use bevy::prelude::*;
 use common::client_packets::S2CPackets;
 use smooth_bevy_cameras::LookTransform;
 
@@ -8,6 +8,7 @@ use crate::{
     idk::do_mesh_shit,
     turtle_stuff::{TurtleInstance, TurtleModels, TURTLE_LERP_TIME},
     util::{pos3_to_vec3, quat_from_dir},
+    BlockBlacklist, MiscState,
 };
 
 pub struct Systems;
@@ -21,7 +22,22 @@ impl Plugin for Systems {
         app.add_systems(Update, update_cam_point_on_turtle_move);
         app.add_systems(Update, lerp_rot_system);
         app.add_systems(Update, chunk_update_mesh);
+        app.add_systems(Update, update_chunk_block_blacklists);
     }
+}
+
+fn update_chunk_block_blacklists(
+    block_blacklist: Res<BlockBlacklist>,
+    mut chunks: Query<&mut ChunkInstance>,
+) {
+    let c = block_blacklist.is_changed();
+    chunks
+        .iter_mut()
+        .filter(|ch| ch.setup | c)
+        .for_each(|mut c| {
+            c.inner_mut().blacklist = block_blacklist.block_render_blacklist.clone();
+            c.setup = false
+        });
 }
 
 pub fn update_cam_point_on_turtle_move(
@@ -96,16 +112,26 @@ pub fn move_turtle(
     mut query: Query<(&TurtleInstance, &mut LerpTransform)>,
     mut event: EventReader<S2CPackets>,
 ) {
-    // TODO: Add Orientation
-    while let Some(S2CPackets::MovedTurtle(e)) = event.iter().next() {
-        query
-            .iter_mut()
-            .filter(|(t, _)| t.index == e.index)
-            .for_each(|(_t, mut lerp)| {
-                lerp.lerp_pos_to(pos3_to_vec3(e.new_pos) + Vec3::splat(0.5), TURTLE_LERP_TIME);
-                // let w = quat_from_dir(pos3_to_vec3(t.orientation.get_forward_vec()), Vec3::Y);
-                let r = quat_from_dir(pos3_to_vec3(e.new_orientation.get_forward_vec()), Vec3::Y);
-                lerp.lerp_rot_to(r, TURTLE_LERP_TIME);
-            });
+    for msg in event.iter() {
+        match msg {
+            S2CPackets::MovedTurtle(e) => {
+                query
+                    .iter_mut()
+                    .filter(|(t, _)| t.index == e.index)
+                    .for_each(|(_t, mut lerp)| {
+                        lerp.lerp_pos_to(
+                            pos3_to_vec3(e.new_pos) + Vec3::splat(0.5),
+                            TURTLE_LERP_TIME,
+                        );
+                        // let w = quat_from_dir(pos3_to_vec3(t.orientation.get_forward_vec()), Vec3::Y);
+                        let r = quat_from_dir(
+                            pos3_to_vec3(e.new_orientation.get_forward_vec()),
+                            Vec3::Y,
+                        );
+                        lerp.lerp_rot_to(r, TURTLE_LERP_TIME);
+                    });
+            }
+            _ => (),
+        }
     }
 }

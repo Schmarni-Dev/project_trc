@@ -1,4 +1,4 @@
-use crate::{Pos3};
+use crate::Pos3;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,11 +15,10 @@ pub fn get_chunk_containing_block(pos: &Pos3) -> Pos3 {
 }
 
 pub fn get_chunk_relative_pos(pos: &Pos3) -> Pos3 {
-    // Maybe of by 1
     Pos3::new(
-        (pos.x + CHUNK_SIZE) % CHUNK_SIZE,
-        (pos.y + CHUNK_SIZE) % CHUNK_SIZE,
-        (pos.z + CHUNK_SIZE) % CHUNK_SIZE,
+        (pos.x as u32 % CHUNK_SIZE as u32) as i32,
+        (pos.y as u32 % CHUNK_SIZE as u32) as i32,
+        (pos.z as u32 % CHUNK_SIZE as u32) as i32,
     )
 }
 

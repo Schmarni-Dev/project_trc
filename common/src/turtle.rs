@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use bevy::prelude::{DerefMut, Deref};
+use bevy::prelude::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
@@ -20,15 +20,17 @@ impl<T> Into<Option<T>> for Maybe<T> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone,Deref,DerefMut)]
+#[derive(Serialize, Deserialize, Debug, Clone, Deref, DerefMut)]
 pub struct Inventory {
+    pub selected_slot: u8,
     #[deref]
-    inv: [Maybe<Item>; 16],
+    pub inv: [Maybe<Item>; 16],
 }
 
 impl Default for Inventory {
     fn default() -> Self {
         Inventory {
+            selected_slot: 1,
             inv: [
                 Maybe::None,
                 Maybe::None,
@@ -135,7 +137,12 @@ pub fn get_rotated_orientation(curr_orient: Orientation, dir: TurnDir) -> Orient
 }
 #[allow(dead_code)]
 impl Turtle {
-    pub fn new_dummy(index: TurtleIndexType, world: String,pos: Pos3,orientation: Orientation) -> Turtle {
+    pub fn new_dummy(
+        index: TurtleIndexType,
+        world: String,
+        pos: Pos3,
+        orientation: Orientation,
+    ) -> Turtle {
         Turtle::new(
             index,
             String::default(),

@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use stuff::get_vertecies_from_side;
 pub mod data;
 mod stuff;
-mod util;
+pub mod util;
 use common::Pos3;
 
 pub fn generate_mesh_for_chunk(chunk_data: &impl ChunkData) -> Vec<BlockFaceData> {

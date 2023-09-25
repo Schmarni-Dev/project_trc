@@ -1,12 +1,8 @@
-use std::{
-    fmt::Debug,
-    ops::{Deref, DerefMut},
-};
-
 use bevy::prelude::{Deref, DerefMut};
 
 use crate::{
     turtle::{self, Inventory, Turtle},
+    turtle_packets::TurtleUpDown,
     world_data::{Block, World},
     Pos3,
 };
@@ -18,9 +14,30 @@ pub enum C2SPackets {
         world: String,
         direction: turtle::MoveDirection,
     },
+    TurtleSelectSlot {
+        index: i32,
+        world: String,
+        slot: u8,
+    },
     RequestTurtles(String),
     RequestWorlds,
     RequestWorld(String),
+    PlaceBlock {
+        index: i32,
+        world: String,
+        dir: TurtleUpDown,
+        text: Option<String>,
+    },
+    BreakBlock {
+        index: i32,
+        world: String,
+        dir: TurtleUpDown,
+    },
+    SendLuaToTurtle {
+        index: i32,
+        world: String,
+        code: String,
+    },
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

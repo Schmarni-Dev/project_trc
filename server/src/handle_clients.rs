@@ -10,13 +10,13 @@ pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
     client_connected: UnboundedSender<(WsSend, WsRecv)>,
-) {
+) -> anyhow::Result<()> {
     info!("Incoming TCP connection from: {}", addr);
 
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
-        .await
-        .expect("Error during the websocket handshake occurred");
+        .await?;
     info!("WebSocket connection established: {}", addr);
 
     _ = client_connected.send(ws_stream.split());
+    Ok(())
 }

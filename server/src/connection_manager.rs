@@ -9,7 +9,7 @@ use crate::db::{DBError, DB};
 
 use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets, SetTurtlesData};
 use common::turtle::Turtle;
-use common::turtle_packets::{SetupInfoData, T2SPackets};
+use common::turtle_packets::{S2TPackets, SetupInfoData, T2SPackets};
 use common::world_data::Block;
 
 use futures_channel::mpsc::unbounded;
@@ -48,6 +48,7 @@ pub async fn main(
             let (client_index, comms) = w;
             match comms {
                 ClientComms::KILL_ME => {
+                    info!("/kill @e[type=client,id={}]", client_index);
                     local_server_clients
                         .lock()
                         .await
@@ -55,6 +56,29 @@ pub async fn main(
                         .await;
                 }
                 ClientComms::Packet(packet) => match packet {
+                    C2SPackets::BreakBlock { index, world, dir } => {
+                        if let Some(t) = local_server_turtles
+                            .lock()
+                            .await
+                            .get_turtle_mut_id_and_world(index, &world)
+                        {
+                            t.send_ws(S2TPackets::BreakBlock { dir }).await;
+                        }
+                    }
+                    C2SPackets::PlaceBlock {
+                        index,
+                        world,
+                        dir,
+                        text,
+                    } => {
+                        if let Some(t) = local_server_turtles
+                            .lock()
+                            .await
+                            .get_turtle_mut_id_and_world(index, &world)
+                        {
+                            t.send_ws(S2TPackets::PlaceBlock { dir, text }).await;
+                        }
+                    }
                     C2SPackets::MoveTurtle {
                         index,
                         world,
@@ -92,7 +116,6 @@ pub async fn main(
                             }
                         };
                         turtles.append(&mut online_turtles);
-                        info!("{turtles:#?}");
                         local_server_clients
                             .lock()
                             .await
@@ -123,6 +146,25 @@ pub async fn main(
                             .send_to(S2CPackets::Worlds(worlds), &client_index)
                             .await;
                     }
+                    C2SPackets::TurtleSelectSlot { index, world, slot } => {
+                        if let Some(t) = local_server_turtles
+                            .lock()
+                            .await
+                            .get_turtle_mut_id_and_world(index, &world)
+                        {
+                            t.send_ws(S2TPackets::SelectSlot(slot)).await;
+                        }
+                    }
+                    C2SPackets::SendLuaToTurtle { index, world, code } => {
+
+                        if let Some(t) = local_server_turtles
+                            .lock()
+                            .await
+                            .get_turtle_mut_id_and_world(index, &world)
+                        {
+                            t.send_ws(S2TPackets::RunLuaCode(code)).await;
+                        }
+                    },
                 },
             }
         }
@@ -135,18 +177,22 @@ pub async fn main(
         while let Some(w) = turtle_comms_rx.next().await {
             match w {
                 TurtleCommBus::RemoveMe(index) => {
-                    info!("Killing(?) trutle: {} ", &index);
+                    info!("/kill @e[type=trutle,id={}] ", &index);
                     local_server_turtles.lock().await.drop_turtle(&index);
                 }
 
                 TurtleCommBus::Packet((i, p)) => {
-                    local_server_turtles
+                    match local_server_turtles
                         .lock()
                         .await
                         .get_turtle_mut(i)
                         .unwrap()
                         .on_msg_recived(p)
-                        .await;
+                        .await
+                    {
+                        Ok(_) => (),
+                        Err(e) => error!("Trutle Packet Err: {e}"),
+                    }
                 }
                 TurtleCommBus::Moved(index) => {
                     let sts = local_server_turtles.lock().await;
@@ -240,7 +286,7 @@ pub async fn main(
                     .unwrap(),
                 Err(DBError::Error(err)) => {
                     error!("{}", err);
-                    send.close().await;
+                    send.close().await.unwrap();
                     continue;
                 }
             };
@@ -250,7 +296,6 @@ pub async fn main(
             st.on_msg_recived(T2SPackets::Batch(data)).await.unwrap();
             let t: Turtle = st.to_owned();
             server_turtles.push(st);
-            info!("???");
             let world = t.world;
             let mut online_turtles = server_turtles
                 .get_common_turtles()
@@ -273,7 +318,6 @@ pub async fn main(
                 }
             };
             turtles.append(&mut online_turtles);
-            info!("connect set turtles{turtles:#?}");
             local_server_clients
                 .lock()
                 .await

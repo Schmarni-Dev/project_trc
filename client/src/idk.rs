@@ -1,40 +1,44 @@
-use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 use crate::voxel_meshing;
 use bevy::prelude::*;
 use common::{
-    world_data::{Chunk, CHUNK_SIZE, get_chunk_relative_pos},
+    world_data::{get_chunk_relative_pos, Chunk, CHUNK_SIZE},
     Pos3,
 };
 use voxel_meshing::{data::ChunkData, generate_mesh_for_chunk};
 
-pub struct ClientChunk(Chunk);
+#[derive(Deref, DerefMut)]
+pub struct ClientChunk {
+    pub blacklist: Arc<[String]>,
+    #[deref]
+    chunk: Chunk,
+}
 
 impl ClientChunk {
     pub fn new(pos: Pos3) -> ClientChunk {
-        ClientChunk(Chunk::new(pos))
+        ClientChunk {
+            chunk: Chunk::new(pos),
+            blacklist: Arc::new([]),
+        }
     }
     pub fn from_chunk(chunk: Chunk) -> ClientChunk {
-        ClientChunk(chunk)
+        ClientChunk {
+            chunk,
+            blacklist: Arc::new([]),
+        }
     }
-}
-
-impl Deref for ClientChunk {
-    type Target = Chunk;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for ClientChunk {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    fn get_block_if_exists(&self,pos: &Pos3) -> Option<String> {
+        if self.chunk.does_block_exist(pos){
+            return self.chunk.get_block_id(pos);
+        }
+        None
     }
 }
 
 impl ChunkData for ClientChunk {
     fn does_block_exits(&self, pos: &Pos3) -> bool {
-        self.0.does_block_exist(pos)
+        self.get_block_if_exists(pos).is_some_and(|b| !self.blacklist.contains(&b))
     }
     fn get_chunk_size(&self) -> i32 {
         CHUNK_SIZE

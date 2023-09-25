@@ -9,7 +9,7 @@ use crate::{
 
 pub const TURTLE_LERP_TIME: f32 = 0.5;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct TurtleInstance {
     turtle: Turtle,
     /// Remove in future just to lazy rn

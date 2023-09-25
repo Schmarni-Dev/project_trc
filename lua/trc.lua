@@ -12,12 +12,15 @@ local turtle = util.HijackedTurtleMovments
 ---@type Queue<string>
 local logs = util.new_queue()
 
+---@type Queue<fun()>
+local functions = util.new_queue()
+
 ---@diagnostic disable-next-line: lowercase-global, unused-vararg
 function log(...)
     local time = os.date("%S:%M:%H")
     ---@type any[]
     local arg = arg
-    local out = "["..time.."]"
+    local out = "[" .. time .. "]"
     for _, value in ipairs(arg) do
         if type(value) == "table" then
             value = textutils.serialise(value)
@@ -98,13 +101,41 @@ local function handle_ws_messages(msg)
         for i, move in pairs(msg.Move) do
             moves:push(move)
         end
+    elseif msg.SelectSlot then
+        turtle.select(msg.SelectSlot)
+    elseif msg.PlaceBlock then
+        if msg.PlaceBlock.dir == "Up" then
+            turtle.placeUp(msg.PlaceBlock.text)
+        elseif msg.PlaceBlock.dir == "Forward" then
+            turtle.place(msg.PlaceBlock.text)
+        elseif msg.PlaceBlock.dir == "Down" then
+            turtle.placeDown(msg.PlaceBlock.text)
+        end
+    elseif msg.BreakBlock then
+        if msg.BreakBlock.dir == "Up" then
+            turtle.digUp()
+        elseif msg.BreakBlock.dir == "Forward" then
+            turtle.dig()
+        elseif msg.BreakBlock.dir == "Down" then
+            turtle.digDown()
+        end
+    elseif msg.RunLuaCode then
+        local code, err = loadstring(msg.RunLuaCode)
+        if err ~= nil or code == nil then
+            log("Error Loading Code From string: " .. err)
+        else
+            functions:push(function()
+                util.run_function_with_injected_globals(code)
+            end)
+        end
     end
 end
+local ws_url = "ws://schmerver.mooo.com:9002"
 
 local function connect_ws()
     local err = nil
     ---@diagnostic disable-next-line: cast-local-type
-    ws, err = http.websocket("ws://schmerver.mooo.com:9002")
+    ws, err = http.websocket(ws_url)
     if ws == false then
         error(err)
         return
@@ -124,6 +155,13 @@ local function ws_stuff()
     end
 end
 
+local function handle_ws_close()
+    local e, url = os.pullEvent()
+    if e == "websocket_closed" or e == "websocket_failure" then
+        error("Websocket Closed \"nil\"!", url)
+    end
+end
+
 
 local pause_ui_rendering = false
 
@@ -132,6 +170,7 @@ local function render_ui()
     util.term_clear()
     print(util.get_logo_string(" OwO ", "="))
     print("Msgs in Queue:", msgs:get_amount_in_queue())
+    print("Moves in Queue:", moves:get_amount_in_queue())
     print("Runtime:", math.floor(os.clock() - start_time) .. "s")
 
     -- for index, value in ipairs(logs) do
@@ -140,9 +179,15 @@ local function render_ui()
 end
 
 local function loop_shit()
+    functions:pop_handler(function(code)
+        code()
+    end)
     moves:pop_handler(function(value)
         turtle_move(value)
     end)
+    if math.floor(os.clock() - start_time) % 15 == 0 then
+        ws.send("Ping")
+    end
 end
 
 ---@return string
@@ -165,6 +210,11 @@ local function get_shutdown_message()
     return words[index]
 end
 
+local function handle_inventory_update()
+    local _ = os.pullEvent("turtle_inventory")
+    util.send(ws, util.InventoryUpdate())
+end
+
 local function main()
     print("please select the world of this turtle:")
     print("select by typing the number next to the world")
@@ -183,7 +233,6 @@ local function main()
 
     connect_ws()
     NetworkedTurtleMoveWebsocket = ws
-    local quit = false
 
     -- util.set_terminate_handler(function()
     --     quit = true
@@ -196,14 +245,8 @@ local function main()
         util.loop(function()
             msgs:pop_handler(handle_ws_messages)
         end),
-        function()
-            while true do
-                if quit then
-                    break
-                end
-                coroutine.yield()
-            end
-        end
+        util.loop(handle_ws_close),
+        util.loop(handle_inventory_update)
     )
 end
 local sucsess, value = pcall(main)

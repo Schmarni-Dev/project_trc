@@ -18,6 +18,25 @@ end
 
 local M = {}
 
+--- Copied from the accepted anser: https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
+---@generic T
+---@param obj T
+---@param seen? table
+---@return T
+function M.copy(obj, seen)
+    if type(obj) ~= 'table' then return obj end
+    if seen and seen[obj] then return seen[obj] end
+    local s = seen or {}
+    local res = setmetatable({}, getmetatable(obj))
+    s[obj] = res
+    for k, v in pairs(obj) do res[M.copy(k, s)] = M.copy(v, s) end
+    return res
+end
+
+if NativeTurtleApi == nil then
+    NativeTurtleApi = M.copy(turtle)
+end
+
 ---Creates a maybe table for json
 ---@generic T
 ---@param val T | nil
@@ -81,7 +100,7 @@ end
 
 ---@return packet
 function M.SetMaxFuel()
-    return { SetMaxFuel = M.fix_num_or_unlimited(turtle.getFuelLimit()) }
+    return { SetMaxFuel = M.fix_num_or_unlimited(NativeTurtleApi.getFuelLimit()) }
 end
 
 ---@param pos pos3
@@ -108,9 +127,9 @@ function M.InventoryUpdate()
     ---@type Maybe<turtleDetails>[]
     local items = {}
     for i = 1, 16, 1 do
-        items[i] = M.maybe(turtle.getItemDetail(i))
+        items[i] = M.maybe(NativeTurtleApi.getItemDetail(i))
     end
-    return { InventoryUpdate = { inv = items } }
+    return { InventoryUpdate = { selected_slot = NativeTurtleApi.getSelectedSlot(), inv = items } }
 end
 
 ---@return packet
@@ -120,7 +139,7 @@ end
 
 ---@return packet
 function M.FuelUpdate()
-    return { FuelUpdate = M.fix_num_or_unlimited(turtle.getFuelLevel()) }
+    return { FuelUpdate = M.fix_num_or_unlimited(NativeTurtleApi.getFuelLevel()) }
 end
 
 ---@class packet
@@ -180,34 +199,96 @@ end
 ---@param ws Websocket
 function M.send_blocks(ws)
     local data = M.ConstructBlocksPacket(
-        M.process_inspect(turtle.inspectUp()),
-        M.process_inspect(turtle.inspectDown()),
-        M.process_inspect(turtle.inspect())
+        M.process_inspect(NativeTurtleApi.inspectUp()),
+        M.process_inspect(NativeTurtleApi.inspectDown()),
+        M.process_inspect(NativeTurtleApi.inspect())
     )
     ws.send(textutils.serialiseJSON(data))
-end
-
---- Copied from the accepted anser: https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
----@param obj table
----@param seen? table
-function M.copy(obj, seen)
-  if type(obj) ~= 'table' then return obj end
-  if seen and seen[obj] then return seen[obj] end
-  local s = seen or {}
-  local res = setmetatable({}, getmetatable(obj))
-  s[obj] = res
-  for k, v in pairs(obj) do res[M.copy(k, s)] = M.copy(v, s) end
-  return res
 end
 
 ---@type nil | Websocket
 NetworkedTurtleMoveWebsocket = NetworkedTurtleMoveWebsocket
 
-local networked_turtle_movments = M.copy(turtle)
+local networked_turtle_api = M.copy(turtle)
+
+
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.place(text)
+    local s, m = NativeTurtleApi.place(text)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.placeUp(text)
+    local s, m = NativeTurtleApi.placeUp(text)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.placeDown(text)
+    local s, m = NativeTurtleApi.placeDown(text)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.dig(side)
+    local s, m = NativeTurtleApi.dig(side)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.digUp(side)
+    local s, m = NativeTurtleApi.digUp(side)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.digDown(side)
+    local s, m = NativeTurtleApi.digDown(side)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+
+---@param slot turtleSlot The inventory slot to select
+---@return boolean success If the slot has been selected (1 - 16)
+---@throws If `slot` is out of range
+---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.select(slot)
+    local s = NativeTurtleApi.select(slot)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send(NetworkedTurtleMoveWebsocket, M.InventoryUpdate())
+    end
+    return s
+end
+
 ---@return boolean, string | nil
 ---@diagnostic disable-next-line: duplicate-set-field
-networked_turtle_movments.up = function()
-    local s, m = turtle.up()
+networked_turtle_api.up = function()
+    local s, m = NativeTurtleApi.up()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Up"))
@@ -217,8 +298,8 @@ networked_turtle_movments.up = function()
     return s, m
 end
 ---@diagnostic disable-next-line: duplicate-set-field
-networked_turtle_movments.down = function()
-    local s, m = turtle.down()
+networked_turtle_api.down = function()
+    local s, m = NativeTurtleApi.down()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Down"))
@@ -228,8 +309,8 @@ networked_turtle_movments.down = function()
     return s, m
 end
 ---@diagnostic disable-next-line: duplicate-set-field
-networked_turtle_movments.forward = function()
-    local s, m = turtle.forward()
+networked_turtle_api.forward = function()
+    local s, m = NativeTurtleApi.forward()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Forward"))
@@ -239,8 +320,8 @@ networked_turtle_movments.forward = function()
     return s, m
 end
 ---@diagnostic disable-next-line: duplicate-set-field
-networked_turtle_movments.back = function()
-    local s, m = turtle.back()
+networked_turtle_api.back = function()
+    local s, m = NativeTurtleApi.back()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Back"))
@@ -250,8 +331,8 @@ networked_turtle_movments.back = function()
     return s, m
 end
 ---@diagnostic disable-next-line: duplicate-set-field
-networked_turtle_movments.turnLeft = function()
-    local s, m = turtle.turnLeft()
+networked_turtle_api.turnLeft = function()
+    local s, m = NativeTurtleApi.turnLeft()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Left"))
@@ -261,8 +342,8 @@ networked_turtle_movments.turnLeft = function()
     return s, m
 end
 ---@diagnostic disable-next-line: duplicate-set-field
-networked_turtle_movments.turnRight = function()
-    local s, m = turtle.turnRight()
+networked_turtle_api.turnRight = function()
+    local s, m = NativeTurtleApi.turnRight()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Right"))
@@ -271,7 +352,21 @@ networked_turtle_movments.turnRight = function()
     end
     return s, m
 end
-M.HijackedTurtleMovments = networked_turtle_movments
+M.HijackedTurtleMovments = networked_turtle_api
+
+---@generic T
+---@param func fun(): T
+---@return T | nil value, string| nil error
+function M.run_function_with_injected_globals(func, ...)
+    turtle = M.HijackedTurtleMovments
+    local ok, value = pcall(func, ...)
+    turtle = NativeTurtleApi
+    if not ok then
+        log("ERROR: " .. value)
+        return nil, value
+    end
+    return value, nil
+end
 
 ---comment
 ---@param ws Websocket

@@ -23,5 +23,6 @@ futures-util = "0.3.28"
 futures-channel = "0.3.28"
 futures = "0.3.28"
 bevy_egui = "0.21.0"
+pretty_env_logger = "0.5.0"
 
 

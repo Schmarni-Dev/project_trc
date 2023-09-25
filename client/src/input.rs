@@ -4,7 +4,10 @@ use bevy::{
 };
 use smooth_bevy_cameras::controllers::orbit::{ControlEvent, OrbitCameraController};
 
+use crate::InputState;
+
 pub fn orbit_input_map(
+    input_state: Res<InputState>,
     mut events: EventWriter<ControlEvent>,
     mut mouse_wheel_reader: EventReader<MouseWheel>,
     mut mouse_motion_events: EventReader<MouseMotion>,
@@ -12,6 +15,9 @@ pub fn orbit_input_map(
     keyboard: Res<Input<KeyCode>>,
     controllers: Query<&OrbitCameraController>,
 ) {
+    if input_state.block_camera_updates {
+        return;
+    }
     // Can only control one camera at a time.
     let controller = if let Some(controller) = controllers.iter().find(|c| c.enabled) {
         controller

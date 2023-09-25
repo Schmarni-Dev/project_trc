@@ -1,1 +1,1 @@
-WINIT_UNIX_BACKEND=x11 cargo run -p trc_client
+WINIT_UNIX_BACKEND=x11 cargo run -p trc_client --features bevy/dynamic_linking

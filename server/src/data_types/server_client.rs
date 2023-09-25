@@ -3,7 +3,7 @@ use common::client_packets::{C2SPackets, S2CPackets};
 use futures::StreamExt;
 use futures_channel::mpsc::UnboundedSender;
 use futures_util::SinkExt;
-use log::info;
+use log::{error, info};
 use rand::prelude::*;
 
 use tokio::task::JoinHandle;
@@ -67,13 +67,13 @@ impl ServerClient {
         });
     }
     pub async fn send_msg(&mut self, msg: &S2CPackets) {
-        if self
+        let text = serde_json::to_string(msg).unwrap();
+        if let Err(err) = self
             .ws_send
-            .send(Message::Text(serde_json::to_string(msg).unwrap()))
+            .send(Message::Text(text))
             .await
-            .is_err()
         {
-            info!("Welp Shit... KILL ME!!!");
+            error!("Error When sending Shit to Client: {}", err);
             _ = self.msg_send.send((self.get_index(), ClientComms::KILL_ME));
         }
     }
@@ -81,8 +81,8 @@ impl ServerClient {
         self.index
     }
     pub async fn delete(mut self) {
-        self.msg_send.close().await.unwrap();
-        self.ws_send.close().await.unwrap();
+        _=self.msg_send.close().await;
+        _=self.ws_send.close().await;
         if let Some(h) = self.ws_read_handle {
             h.abort();
         }

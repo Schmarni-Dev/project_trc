@@ -13,15 +13,14 @@ pub async fn handle_connection(
     raw_stream: TcpStream,
     addr: SocketAddr,
     turtle_connected_send: UnboundedSender<(SetupInfoData, Vec<T2SPackets>, WsSend, WsRecv)>,
-) {
+) -> anyhow::Result<()> {
     if addr.to_string().contains("35.177.97.185") {
         drop(raw_stream);
-        return;
+        return Ok(());
     }
     info!("Incoming TCP connection from: {}", addr);
-    let ws_stream = tokio_tungstenite::accept_async(raw_stream)
-        .await
-        .expect("Error during the websocket handshake occurred");
+    let ws_stream = tokio_tungstenite::accept_async(raw_stream).await?;
+    // .expect("Error during the websocket handshake occurred");
     info!("WebSocket connection established");
     let (mut outgoing, mut incoming) = ws_stream.split();
     outgoing
@@ -37,19 +36,18 @@ pub async fn handle_connection(
                     [T2SPackets::SetupInfo(i), ..] => i.clone(),
                     _ => {
                         info!("invalid Setup Packet!");
-                        outgoing.close().await;
+                        outgoing.close().await?;
                         break;
                     }
                 };
-                turtle_connected_send
-                    .send((info, data, outgoing, incoming))
-                    .unwrap();
+                turtle_connected_send.send((info, data, outgoing, incoming))?;
                 break;
             }
         } else {
             info!("invalid Setup Packet!");
-            outgoing.close().await;
+            outgoing.close().await?;
             break;
         };
     }
+    Ok(())
 }

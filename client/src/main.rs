@@ -1,39 +1,44 @@
+use actually_usable_voxel_mesh_gen::util::string_to_color;
 #[allow(unused_imports)]
 use bevy::log::prelude::*;
-use bevy::{pbr::DirectionalLightShadowMap, prelude::*, render::texture::ImageSampler};
+use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
 use bevy_egui::{
-    egui::{self, Color32, Grid},
+    egui::{self, Align2, Color32, Grid},
     EguiContexts, EguiPlugin, EguiSettings,
 };
 use common::{
     client_packets::{C2SPackets, S2CPackets, SetTurtlesData},
-    turtle::{Maybe, MoveDirection},
+    turtle::{Item, Maybe, MoveDirection},
+    turtle_packets::TurtleUpDown,
     world_data::{get_chunk_containing_block, Chunk},
 };
-use custom_egui_widgets::item_box::item_box;
+use custom_egui_widgets::item_box::{item_box, ItemSlotActions, TX};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
-use std::{f32::consts::FRAC_PI_4, sync::mpsc};
-use trc_client::input;
+use std::{
+    f32::consts::FRAC_PI_4,
+    fs,
+    ops::Deref,
+    path::PathBuf,
+    sync::{mpsc, Arc},
+};
 use trc_client::{
     bundels::ChunkBundle,
     components::ChunkInstance,
-    events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
+    events::{ActiveTurtleRes, EventsPlugin},
     idk::ClientChunk,
+    raycast::RaycastPlugin,
     systems::Systems,
     turtle_stuff::{turtle_spawner, SpawnTurtle, TurtleInstance, TurtleModels},
     ws::WS,
+    BlockBlacklist, DoBlockRaymarch, MiscState, ShowFileDialog,
 };
-
-#[derive(Resource)]
-pub struct WorldState {
-    curr_world: Option<String>,
-    worlds: Vec<String>,
-}
+use trc_client::{input, InputState, WorldState};
 
 fn main() {
+    pretty_env_logger::init_timed();
     App::new()
         .insert_resource(AmbientLight {
             color: Color::WHITE,
@@ -43,6 +48,21 @@ fn main() {
             curr_world: None,
             worlds: Vec::new(),
         })
+        .insert_resource(InputState {
+            block_camera_updates: false,
+        })
+        .insert_resource(BlockBlacklist {
+            block_render_blacklist: Arc::new(["minecraft:water".into()]),
+        })
+        .insert_resource(MiscState {
+            hovered_block: None,
+        })
+        .insert_resource(ShowFileDialog {
+            show: false,
+            conntents: "".into(),
+            file: PathBuf::default(),
+        })
+        .insert_resource(DoBlockRaymarch(true))
         .insert_resource(DirectionalLightShadowMap::default())
         .add_plugins(DefaultPlugins)
         .add_plugins(LookTransformPlugin)
@@ -51,6 +71,7 @@ fn main() {
         .add_plugins(WS)
         .add_plugins(EventsPlugin)
         .add_plugins(EguiPlugin)
+        .add_plugins(RaycastPlugin)
         .add_event::<SpawnTurtle>()
         .add_event::<SpawnChunk>()
         .add_systems(Startup, setup)
@@ -70,7 +91,27 @@ fn main() {
         .add_systems(Update, update_worlds)
         .add_systems(Update, turtle_stuff_update)
         .add_systems(Update, handle_world_selection_updates)
+        .add_systems(Update, file_drop)
         .run();
+}
+
+fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowFileDialog>) {
+    for ev in dnd_evr.iter() {
+        if let FileDragAndDrop::DroppedFile {
+            window: _,
+            path_buf,
+        } = ev
+        {
+            match fs::read_to_string(path_buf) {
+                Ok(text) => {
+                    dialog.file = path_buf.clone();
+                    dialog.show = true;
+                    dialog.conntents = text;
+                }
+                Err(_err) => (),
+            }
+        }
+    }
 }
 
 fn handle_world_selection_updates(
@@ -149,12 +190,32 @@ fn ui(
     mut contexts: EguiContexts,
     turtles: Query<&TurtleInstance>,
     mut active_turtle_res: ResMut<ActiveTurtleRes>,
+    mut input_state: ResMut<InputState>,
+    mut ws_writer: EventWriter<C2SPackets>,
+    egui_input: Res<bevy_egui::EguiMousePosition>,
+    misc_state: Res<MiscState>,
+    mut do_block_march: ResMut<DoBlockRaymarch>,
+    mut item_amount_modifier: Local<u8>,
+    mut file_dialog: ResMut<ShowFileDialog>,
 ) {
-    let mut turtles = turtles.iter().filter(|t| t.is_online);
+    if **do_block_march && !input_state.block_camera_updates {
+        if let Some(b) = misc_state.hovered_block.as_ref() {
+            egui::show_tooltip_text(
+                contexts.ctx_mut(),
+                egui::Id::new("block_raycast_tooltip"),
+                b,
+            );
+        }
+    }
+    input_state.block_camera_updates = false;
+    let mut turtles = turtles.iter().filter(|t| t.is_online).map(|t| t.deref());
     let curr_turtle = turtles.find(|t| t.index == active_turtle_res.0);
-    egui::TopBottomPanel::top("TRC").show(contexts.ctx_mut(), move |ui| {
+    file_dialog.show &= curr_turtle.is_some();
+    let main_panel = egui::TopBottomPanel::top("TRC").show(contexts.ctx_mut(), move |ui| {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
+                // ui.spacing_mut().interact_size.y *= 1.5;
+                ui.checkbox(&mut *do_block_march, "Block Raymarching");
                 let mut c = egui::ComboBox::from_label("World");
                 if let Some(w) = &worlds.curr_world {
                     c = c.selected_text(w);
@@ -179,6 +240,7 @@ fn ui(
                     ui.set_min_width(60.0);
                     // Hateble (the clone here)
                     for t in turtles {
+                        info!("turtl: {t:#?}");
                         ui.selectable_value(
                             &mut active_turtle_res.0,
                             t.index,
@@ -192,68 +254,187 @@ fn ui(
                     ui.add_space(1.0);
                     ui.add(
                         custom_egui_widgets::CircleDisplay::new()
-                            .size(2.0)
-                            .stroke_width(4.0)
-                            .font_size(20.0)
+                            .size(3.0)
+                            .stroke_width(6.0)
+                            .font_size(12.0)
                             .build(&t.fuel, &t.max_fuel),
                     );
+                    ui.add_space(1.0);
                 });
             }
         });
     });
+    input_state.block_camera_updates |= main_panel.response.hovered();
+
     if let Some(t) = curr_turtle.as_ref() {
         let (tx, rx) = mpsc::channel();
-        egui::Window::new("Inventory").show(contexts.ctx_mut(), |ui| {
-            let inv = t.inventory.iter().zip(0u8..16u8);
-            ui.group(|ui| {
-                Grid::new("inv_grid").show(ui, |ui| {
-                    for (item, i) in inv {
-                        match item {
-                            Maybe::None => {
-                                ui.add(item_box(
-                                    0,
-                                    "".into(),
-                                    Color32::LIGHT_GRAY,
-                                    1.0,
-                                    i + 1,
-                                    tx.clone(),
-                                ));
+        let window = egui::Window::new("Inventory")
+            .resizable(false)
+            .enabled(!file_dialog.show)
+            .show(contexts.ctx_mut(), |ui| {
+                let inv = t.inventory.iter().map(|i| i.to_owned()).zip(0u8..);
+                let slot = t.inventory.selected_slot;
+                ui.spacing_mut().interact_size.x = 0.0;
+                Grid::new("inv_grid")
+                    .spacing(egui::Vec2::splat(2.0))
+                    .show(ui, |ui| {
+                        for (item, i) in inv {
+                            ui.add(ib(
+                                item,
+                                i + 1,
+                                tx.clone(),
+                                slot,
+                                &mut *item_amount_modifier,
+                            ));
+                            if i % 4 == 3 {
+                                ui.end_row();
                             }
-                            Maybe::Some(it) => {
-                                ui.add(item_box(
-                                    it.count,
-                                    it.name.clone().into(),
-                                    Color32::LIGHT_GREEN,
-                                    1.0,
-                                    i + 1,
-                                    tx.clone(),
-                                ));
-                            }
+                        }
+                    });
+            });
+
+        while let Ok((slot, action)) = rx.try_recv() {
+            match action {
+                ItemSlotActions::SelectSlot => ws_writer.send(C2SPackets::TurtleSelectSlot {
+                    index: t.index,
+                    world: t.world.clone(),
+                    slot,
+                }),
+                ItemSlotActions::Transfer(amount) => ws_writer.send(C2SPackets::SendLuaToTurtle {
+                    index: t.index,
+                    world: t.world.clone(),
+                    code: format!("turtle.transferTo({slot}, {amount})"),
+                }),
+            }
+        }
+        input_state.block_camera_updates |= window
+            .zip(egui_input.0)
+            .is_some_and(|(w, (_, i))| w.response.rect.contains(i.to_pos2()));
+    }
+    if file_dialog.show {
+        egui::Window::new("File Dialog")
+            .collapsible(false)
+            .resizable(false)
+            .show(contexts.ctx_mut(), |ui| {
+                ui.label(format!(
+                    "Run File: \"{}\" On Current Turtle?",
+                    file_dialog
+                        .file
+                        .file_name()
+                        .map(|n| n.to_string_lossy())
+                        .unwrap()
+                ));
+                ui.horizontal(|ui| {
+                    if ui.button("Close").clicked() {
+                        file_dialog.show = false;
+                    }
+
+                    if ui.button("Send").clicked() {
+                        file_dialog.show = false;
+                        // send shit to turtle
+                        if let Some(t) = curr_turtle {
+                            ws_writer.send(C2SPackets::SendLuaToTurtle {
+                                index: t.index,
+                                world: t.world.clone(),
+                                code: file_dialog.conntents.clone(),
+                            });
+                            info!("Ok sending code to turtle: {}", &file_dialog.conntents);
                         }
                     }
                 });
             });
-        });
     }
+}
+
+fn ib<'a>(
+    item: Maybe<Item>,
+    slot_id: u8,
+    tx: TX,
+    selected: u8,
+    amount_modifier: &'a mut u8,
+) -> impl egui::Widget + 'a {
+    let item: Option<Item> = item.into();
+    let color = match item.clone() {
+        None => Color32::DARK_GRAY,
+        Some(it) => {
+            let color: [u8; 3] = string_to_color(&it.name)[0..3].try_into().unwrap();
+            let c = Color32::from_rgb(
+                (color[0] >> 1) | 128u8,
+                (color[1] >> 1) | 128u8,
+                (color[2] >> 1) | 128u8,
+            );
+            c
+        }
+    };
+    item_box(
+        item.clone().map_or(0, |i| i.count),
+        item.clone().map_or("".into(), |i| i.name).into(),
+        color,
+        0.9,
+        slot_id,
+        tx.clone(),
+        slot_id == selected,
+        amount_modifier,
+    )
 }
 
 fn test(
     input: Res<Input<KeyCode>>,
-    mut active_turtle_changed: EventWriter<ActiveTurtleChanged>,
     mut ws_writer: EventWriter<C2SPackets>,
-    mut active_turtle_res: ResMut<ActiveTurtleRes>,
+    active_turtle_res: Res<ActiveTurtleRes>,
     turtles: Query<&TurtleInstance>,
-    world_state: Res<WorldState>
+    world_state: Res<WorldState>,
 ) {
-    if input.just_pressed(KeyCode::Period) {
-        active_turtle_res.0 += 1;
-        active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
+    // if input.just_pressed(KeyCode::Period) {
+    //     active_turtle_res.0 += 1;
+    //     active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
+    // };
+    // if input.just_pressed(KeyCode::Comma) {
+    //     active_turtle_res.0 -= 1;
+    //     active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
+    // };
+    let up_down_modifier = if input.pressed(KeyCode::ControlLeft) {
+        TurtleUpDown::Down
+    } else if input.pressed(KeyCode::ShiftLeft) {
+        TurtleUpDown::Up
+    } else {
+        TurtleUpDown::Forward
     };
-    if input.just_pressed(KeyCode::Comma) {
-        active_turtle_res.0 -= 1;
-        active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
+    let lua_func_suffix = match up_down_modifier.clone() {
+        TurtleUpDown::Up => "Up",
+        TurtleUpDown::Forward => "",
+        TurtleUpDown::Down => "Down",
     };
     let valid_active_turtle = turtles.iter().any(|t| t.index == active_turtle_res.0);
+    if input.just_pressed(KeyCode::V) && valid_active_turtle {
+        ws_writer.send(C2SPackets::SendLuaToTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
+            index: active_turtle_res.0,
+            code: format!("turtle.drop{lua_func_suffix}()")
+        })
+    };
+    if input.just_pressed(KeyCode::C) && valid_active_turtle {
+        ws_writer.send(C2SPackets::SendLuaToTurtle {
+            world: world_state.curr_world.clone().unwrap_or_default(),
+            index: active_turtle_res.0,
+            code: format!("turtle.suck{lua_func_suffix}()")
+        })
+    };
+    if input.just_pressed(KeyCode::F) && valid_active_turtle {
+        ws_writer.send(C2SPackets::BreakBlock {
+            world: world_state.curr_world.clone().unwrap_or_default(),
+            index: active_turtle_res.0,
+            dir: up_down_modifier.clone(),
+        })
+    };
+    if input.just_pressed(KeyCode::R) && valid_active_turtle {
+        ws_writer.send(C2SPackets::PlaceBlock {
+            world: world_state.curr_world.clone().unwrap_or_default(),
+            index: active_turtle_res.0,
+            dir: up_down_modifier.clone(),
+            text: None,
+        })
+    };
     if input.just_pressed(KeyCode::W) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
@@ -310,9 +491,8 @@ fn setup_turtles(
         match p.to_owned() {
             S2CPackets::SetTurtles(SetTurtlesData { turtles, world }) => {
                 if world_state.curr_world.as_ref().is_some_and(|w| w == &world) {
-                    query.for_each(|entity| {
-                        info!("{entity:#?}");
-                        commands.entity(entity).despawn();
+                    query.iter().for_each(|entity| {
+                        commands.entity(entity).despawn_recursive();
                     });
                     turtles.into_iter().for_each(|t| {
                         spwan_turtle.send(SpawnTurtle {
@@ -372,7 +552,7 @@ fn set_world_on_event(
     for e in event.iter() {
         if let S2CPackets::SetWorld(world) = e {
             query.for_each(|entity| {
-                commands.entity(entity).despawn();
+                commands.entity(entity).despawn_recursive();
             });
             world
                 .get_chunks()

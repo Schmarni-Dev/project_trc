@@ -76,7 +76,8 @@ impl ServerTurtle {
 
     #[inline(always)]
     async fn re_packet(&mut self, msg: T2SPackets) -> Result<(), futures_channel::mpsc::SendError> {
-        self.comm(TurtleCommBus::Packet((self.instance_id, msg))).await
+        self.comm(TurtleCommBus::Packet((self.instance_id, msg)))
+            .await
     }
     #[inline(always)]
     async fn comm(&mut self, msg: TurtleCommBus) -> Result<(), futures_channel::mpsc::SendError> {
@@ -84,7 +85,6 @@ impl ServerTurtle {
     }
 
     pub async fn on_msg_recived(&mut self, msg: T2SPackets) -> anyhow::Result<()> {
-        info!("msg");
         match msg {
             T2SPackets::Batch(packets) => {
                 for p in packets {
@@ -93,13 +93,6 @@ impl ServerTurtle {
             }
             T2SPackets::SetPos(pos) => {
                 self.position = pos;
-
-                info!(
-                    "{}|{}|{}",
-                    pos_to_db_pos(&self.position),
-                    self.index,
-                    &self.world
-                );
                 self.db
                     .exec(
                         "
@@ -151,6 +144,8 @@ impl ServerTurtle {
                         ),
                     )
                     .await?;
+                self.comm(TurtleCommBus::InvUpdate(self.instance_id))
+                    .await?;
             }
             T2SPackets::WorldUpdate(w_name) => {
                 self.db
@@ -187,6 +182,8 @@ impl ServerTurtle {
                         args!(self.fuel, self.index, &self.world),
                     )
                     .await?;
+                self.comm(TurtleCommBus::FuelUpdate(self.instance_id))
+                    .await?;
             }
             T2SPackets::Moved { direction } => {
                 let mut p = self.position.clone();
@@ -213,12 +210,12 @@ impl ServerTurtle {
                 .await?;
                 self.re_packet(T2SPackets::SetPos(p)).await?;
                 self.re_packet(T2SPackets::SetOrientation(o)).await?;
-                _ = self.comm_bus.send(TurtleCommBus::Moved(self.index)).await;
+                _ = self.comm_bus.send(TurtleCommBus::Moved(self.instance_id)).await;
             }
             T2SPackets::Blocks { up, down, front } => {
-                info!("up: {:?}", up);
-                info!("front: {:?}", front);
-                info!("down: {:?}", down);
+                // info!("up: {:?}", up);
+                // info!("front: {:?}", front);
+                // info!("down: {:?}", down);
                 use TurtleCommBus::UpdateBlock;
                 self.comm(UpdateBlock(Block::new(
                     up.into(),
@@ -243,7 +240,7 @@ impl ServerTurtle {
         Ok(())
     }
     #[allow(dead_code)]
-    async fn send_ws(&mut self, packet: S2TPackets) {
+   pub  async fn send_ws(&mut self, packet: S2TPackets) {
         self.send
             .send(Message::Text(to_string_pretty(&packet).unwrap()))
             .await
@@ -254,7 +251,6 @@ impl ServerTurtle {
     }
 
     pub async fn move_(&mut self, dir: MoveDirection) {
-        info!("{dir:#?}");
         self.send_ws(S2TPackets::Move(vec![dir])).await;
     }
 
@@ -271,23 +267,28 @@ impl ServerTurtle {
             tokio::spawn(async move {
                 loop {
                     let packet = recv.next().await;
-                    info!("Turtle ws Message Recived: {:#?}", packet);
                     match packet {
+                        Some(Ok(Message::Text(msg))) if &msg == "Ping" => {}
                         Some(Ok(Message::Text(msg))) => {
                             if let Ok(msg) = from_str::<T2SPackets>(&msg) {
-                                channel
+                                _ = channel
                                     .send(TurtleCommBus::Packet((instance_id, msg)))
-                                    .await
-                                    .unwrap();
+                                    .await;
                             }
                         }
                         None => {
-                            channel.send(TurtleCommBus::RemoveMe(instance_id)).await.unwrap();
+                            channel
+                                .send(TurtleCommBus::RemoveMe(instance_id))
+                                .await
+                                .unwrap();
                             break;
                         }
                         Some(Err(e)) => {
                             error!("Turtle ws error: {}", e);
-                            channel.send(TurtleCommBus::RemoveMe(instance_id)).await.unwrap();
+                            channel
+                                .send(TurtleCommBus::RemoveMe(instance_id))
+                                .await
+                                .unwrap();
                             break;
                         }
                         Some(_) => {}
