@@ -37,6 +37,7 @@ pub enum T2SPackets {
         down: Maybe<String>,
         front: Maybe<String>,
     },
+    Ping,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum S2TPackets {

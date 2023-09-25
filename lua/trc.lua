@@ -7,7 +7,7 @@ if util_code == nil then return end
 ---@module 'util'
 local util = assert(loadstring(util_code))()
 
-local turtle = util.HijackedTurtleMovments
+
 
 ---@type Queue<string>
 local logs = util.new_queue()
@@ -36,6 +36,107 @@ function log(...)
     logs:push(out)
 end
 
+---@return pos3, orienation
+local function ask_for_coords()
+    settings.define("trc.ask_for_coords",
+        { description = "If the Turtle should ask for coordinates and Facing Direction", type = "boolean", default = true })
+    if not settings.get("trc.ask_for_coords", true) then
+        return { x = 0, y = 0, z = 0 }, "North"
+    end
+    print("Please Input the x,y,z coordinates of the turtle!")
+    print("X:")
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local x = math.floor(tonumber(io.read()))
+    print("Y:")
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local y = math.floor(tonumber(io.read()))
+    print("Z:")
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local z = math.floor(tonumber(io.read()))
+    term.clear()
+    term.setCursorPos(1, 1)
+    print("Thanks Now please input The Direction the turtle points")
+    print("Stand Behind the turtle look in the same direction as the turtle and read the Facing Value in the F3 screen")
+    local dir = io.read()
+    ---@type orienation
+    local real_dir = "North"
+    if dir == "N" or dir == "North" then
+        real_dir = "North"
+    elseif dir == "W" or dir == "West" then
+        real_dir = "West"
+    elseif dir == "S" or dir == "South" then
+        real_dir = "South"
+    elseif dir == "E" or dir == "East" then
+        real_dir = "East"
+    else
+        error("Invalid Direction input, Valid inputs are:\n[N]orth\n[S]outh\n[W]est\n[E]ast")
+    end
+    log("successfully asked for coords")
+    settings.set("trc.ask_for_coords", false)
+    settings.save()
+    return { x = x, y = y, z = z }, real_dir
+end
+
+local function spin_to_move()
+    local exists, info = turtle.inspect()
+    if not exists or util.fix_inspect(info) == "minecraft:water" then
+        turtle.forward()
+        return true
+    end
+    turtle.turnRight()
+    exists, info = turtle.inspect()
+    if not exists or util.fix_inspect(info) == "minecraft:water" then
+        turtle.forward()
+        return true
+    end
+    turtle.turnRight()
+    exists, info = turtle.inspect()
+    if not exists or util.fix_inspect(info) == "minecraft:water" then
+        turtle.forward()
+        return true
+    end
+    turtle.turnRight()
+    exists, info = turtle.inspect()
+    if not exists or util.fix_inspect(info) == "minecraft:water" then
+        turtle.forward()
+        return true
+    end
+    turtle.turnRight()
+    return false
+end
+
+---@return pos3, orienation
+local function get_coords_and_orient()
+    local modem = peripheral.find("modem", function(_, modem)
+        return modem.isWireless()
+    end)
+    if modem ~= nil then
+        local x, y, z = gps.locate(1, false)
+        if x == nil or not spin_to_move() then
+            return ask_for_coords()
+        end
+        local x2, _, z2 = gps.locate(1, false)
+        turtle.back()
+        local xd, zd = x2 - x, z2 - z
+        ---@type orienation
+        local dir = "North"
+        if zd == -1 then
+            dir = "North"
+        elseif zd == 1 then
+            dir = "South"
+        elseif xd == -1 then
+            dir = "West"
+        elseif xd == 1 then
+            dir = "East"
+        end
+        return { x = x, y = y, z = z }, dir
+    end
+
+    return ask_for_coords()
+end
+
+local turtle = util.HijackedTurtleMovments
+
 ---@return string[]
 local function get_worlds()
     local req = http.get("http://schmerver.mooo.com:9003/get_worlds")
@@ -48,10 +149,6 @@ end
 
 
 local world = "test_world_01"
----@return pos3, orienation
-local function get_coords_and_orient()
-    return { x = 0, y = 0, z = 0 }, "North"
-end
 
 ---@param ws Websocket
 local function sendSetupInfo(ws)
@@ -186,7 +283,7 @@ local function loop_shit()
         turtle_move(value)
     end)
     if math.floor(os.clock() - start_time) % 15 == 0 then
-        ws.send("Ping")
+        ws.send("\"Ping\"")
     end
 end
 
@@ -215,21 +312,42 @@ local function handle_inventory_update()
     util.send(ws, util.InventoryUpdate())
 end
 
-local function main()
-    print("please select the world of this turtle:")
-    print("select by typing the number next to the world")
+---@return string
+local function get_world()
+    settings.define("trc.world", { description = "The World The Turtle will automatically register in", type = "string" })
+    ---@type string | nil
+    local w = settings.get("trc.world")
+    local found = false
     local worlds = get_worlds()
-    for index, value in ipairs(worlds) do
-        print(index, ":", value)
+    for _, value in ipairs(worlds) do
+        if w == value then
+            found = true
+        end
     end
-    local index = tonumber(io.read())
-    if worlds[index] == nil then
-        error("Invalid index")
-        return
+    if not found or w == nil then
+        print("please select the world of this turtle:")
+        print("select by typing the number next to the world")
+        for index, value in ipairs(worlds) do
+            print(index, ":", value)
+        end
+        local index = tonumber(io.read())
+        if worlds[index] == nil then
+            error("Invalid index")
+        end
+        w = worlds[index]
+        settings.set("trc.world", w)
+        if not settings.save() then
+            error("unable to save settings")
+        end
     end
-    world = worlds[index]
+    return w
+end
 
+local function main()
     log("TRC Ready")
+
+    world = get_world()
+    log("setting world to: ", world)
 
     connect_ws()
     NetworkedTurtleMoveWebsocket = ws
@@ -254,6 +372,7 @@ util.term_clear()
 print(util.get_logo_string(get_shutdown_message(), " "))
 if not sucsess then
     printError("Error:", value)
+    log("FATAL: ", value)
 end
 -- util.reset_event_handler()
 ws.close()

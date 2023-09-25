@@ -31,17 +31,25 @@ pub async fn handle_connection(
         .unwrap();
     while let Some(Ok(msg)) = incoming.next().await {
         if let Message::Text(msg) = msg {
-            if let T2SPackets::Batch(data) = from_str::<T2SPackets>(&msg).unwrap() {
-                let info = match data.as_slice() {
-                    [T2SPackets::SetupInfo(i), ..] => i.clone(),
-                    _ => {
-                        info!("invalid Setup Packet!");
-                        outgoing.close().await?;
-                        break;
-                    }
-                };
-                turtle_connected_send.send((info, data, outgoing, incoming))?;
-                break;
+            match from_str::<T2SPackets>(&msg).unwrap() {
+                T2SPackets::Batch(data) => {
+                    let info = match data.as_slice() {
+                        [T2SPackets::SetupInfo(i), ..] => i.clone(),
+                        _ => {
+                            info!("invalid Setup Packet!");
+                            outgoing.close().await?;
+                            break;
+                        }
+                    };
+                    turtle_connected_send.send((info, data, outgoing, incoming))?;
+                    break;
+                }
+                T2SPackets::Ping => {}
+                _ => {
+                    info!("invalid Setup Packet!");
+                    outgoing.close().await?;
+                    break;
+                }
             }
         } else {
             info!("invalid Setup Packet!");

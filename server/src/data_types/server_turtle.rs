@@ -86,6 +86,7 @@ impl ServerTurtle {
 
     pub async fn on_msg_recived(&mut self, msg: T2SPackets) -> anyhow::Result<()> {
         match msg {
+            T2SPackets::Ping => {}
             T2SPackets::Batch(packets) => {
                 for p in packets {
                     self.re_packet(p).await?;
@@ -210,7 +211,10 @@ impl ServerTurtle {
                 .await?;
                 self.re_packet(T2SPackets::SetPos(p)).await?;
                 self.re_packet(T2SPackets::SetOrientation(o)).await?;
-                _ = self.comm_bus.send(TurtleCommBus::Moved(self.instance_id)).await;
+                _ = self
+                    .comm_bus
+                    .send(TurtleCommBus::Moved(self.instance_id))
+                    .await;
             }
             T2SPackets::Blocks { up, down, front } => {
                 // info!("up: {:?}", up);
@@ -240,7 +244,7 @@ impl ServerTurtle {
         Ok(())
     }
     #[allow(dead_code)]
-   pub  async fn send_ws(&mut self, packet: S2TPackets) {
+    pub async fn send_ws(&mut self, packet: S2TPackets) {
         self.send
             .send(Message::Text(to_string_pretty(&packet).unwrap()))
             .await
