@@ -11,7 +11,7 @@ pub struct WS;
 
 impl Plugin for WS {
     fn build(&self, app: &mut App) {
-        let ws_communitcator = WsCommunicator::init("ws://localhost:9001");
+        let ws_communitcator = WsCommunicator::init("ws://schmerver.mooo.com:9001");
         // add things to your app here
         app.insert_resource(ws_communitcator);
         app.add_systems(Update, run_ws);
