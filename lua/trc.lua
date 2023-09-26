@@ -37,6 +37,7 @@ function log(...)
 end
 
 local pause_ui_rendering = false
+local send_pos_and_orient = false
 
 ---@return pos3, orienation
 local function ask_for_coords()
@@ -49,6 +50,7 @@ local function ask_for_coords()
         pause_ui_rendering = false
         return { x = 0, y = 0, z = 0 }, "North"
     end
+    send_pos_and_orient = true
     print("Please Input the x,y,z coordinates of the turtle!")
     print("X:")
     ---@diagnostic disable-next-line: param-type-mismatch
@@ -122,6 +124,7 @@ local function get_coords_and_orient()
         if x == nil or not spin_to_move() then
             return ask_for_coords()
         end
+        send_pos_and_orient = true
         local x2, _, z2 = gps.locate(1, false)
         turtle.back()
         local xd, zd = x2 - x, z2 - z
@@ -159,8 +162,15 @@ local world = "test_world_01"
 
 ---@param ws Websocket
 local function sendSetupInfo(ws)
-    local data = util.BatchPackets(util.SetupInfo(world, get_coords_and_orient()), util.SetMaxFuel(),
-        util.FuelUpdate(), util.NameUpdate(), util.InventoryUpdate())
+    ---@type pos3, orienation
+    local pos, orient = get_coords_and_orient()
+    local pos2 = { x = pos.x, y = pos.y, z = pos.z }
+    local pos_orient = nil
+    if send_pos_and_orient then
+        pos_orient = util.BatchPackets(util.SetPos(pos2), util.SetOrientation(orient))
+    end
+    local data = util.BatchPackets(util.SetupInfo(world, pos, orient), util.SetMaxFuel(),
+        util.FuelUpdate(), util.NameUpdate(), util.InventoryUpdate(), pos_orient)
     local json = textutils.serialiseJSON(data)
     ws.send(json)
 end

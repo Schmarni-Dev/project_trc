@@ -27,7 +27,7 @@ use std::{
 use trc_client::{
     bundels::ChunkBundle,
     components::ChunkInstance,
-    events::{ActiveTurtleRes, EventsPlugin},
+    events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
     idk::ClientChunk,
     raycast::RaycastPlugin,
     systems::Systems,
@@ -92,6 +92,7 @@ fn main() {
         .add_systems(Update, turtle_stuff_update)
         .add_systems(Update, handle_world_selection_updates)
         .add_systems(Update, file_drop)
+        .add_systems(Update, fix_curr_turtle_updates)
         .run();
 }
 
@@ -183,6 +184,17 @@ fn turtle_stuff_update(
             _ => (),
         }
     }
+}
+
+fn fix_curr_turtle_updates(
+    active_turtle_res: Res<ActiveTurtleRes>,
+    mut i: Local<i32>,
+    mut ats: EventWriter<ActiveTurtleChanged>,
+) {
+    if *i != active_turtle_res.0 {
+        ats.send(ActiveTurtleChanged(active_turtle_res.0))
+    }
+    *i = active_turtle_res.0
 }
 
 fn ui(
@@ -387,10 +399,14 @@ fn ib<'a>(
 fn test(
     input: Res<Input<KeyCode>>,
     mut ws_writer: EventWriter<C2SPackets>,
+    mut contexts: EguiContexts,
     active_turtle_res: Res<ActiveTurtleRes>,
     turtles: Query<&TurtleInstance>,
     world_state: Res<WorldState>,
 ) {
+    if contexts.ctx_mut().wants_keyboard_input() {
+        return;
+    }
     // if input.just_pressed(KeyCode::Period) {
     //     active_turtle_res.0 += 1;
     //     active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));

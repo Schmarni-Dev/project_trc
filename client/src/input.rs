@@ -2,6 +2,7 @@ use bevy::{
     input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
     prelude::*,
 };
+use bevy_egui::EguiContexts;
 use smooth_bevy_cameras::controllers::orbit::{ControlEvent, OrbitCameraController};
 
 use crate::InputState;
@@ -11,11 +12,12 @@ pub fn orbit_input_map(
     mut events: EventWriter<ControlEvent>,
     mut mouse_wheel_reader: EventReader<MouseWheel>,
     mut mouse_motion_events: EventReader<MouseMotion>,
+    mut contexts: EguiContexts,
     mouse_buttons: Res<Input<MouseButton>>,
     keyboard: Res<Input<KeyCode>>,
     controllers: Query<&OrbitCameraController>,
 ) {
-    if input_state.block_camera_updates {
+    if contexts.ctx_mut().wants_pointer_input() {
         return;
     }
     // Can only control one camera at a time.

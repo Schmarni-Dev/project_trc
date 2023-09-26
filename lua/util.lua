@@ -71,7 +71,7 @@ function M.get_maybe_using_bool(bool, val)
     return M.maybe(data)
 end
 
----@alias pos3 {x:integer,y:integer,z:integer}
+---@class pos3: {x:integer,y:integer,z:integer}
 ---@alias orienation
 ---Towards -Z
 ---| "North"
@@ -87,6 +87,7 @@ end
 ---@param world string
 ---@param position pos3
 ---@param facing orienation
+---@return packet
 function M.SetupInfo(world, position, facing)
     return {
         SetupInfo = {
