@@ -208,8 +208,16 @@ fn ui(
         }
     }
     input_state.block_camera_updates = false;
-    let mut turtles = turtles.iter().filter(|t| t.is_online).map(|t| t.deref());
-    let curr_turtle = turtles.find(|t| t.index == active_turtle_res.0);
+    let online_turtles = turtles
+        .iter()
+        .filter(|t| {
+            let w = t.turtle.is_online;
+            return w;
+        })
+        .map(|t| t.deref().clone())
+        .collect::<Vec<_>>();
+    let why = online_turtles.clone();
+    let curr_turtle = why.iter().find(|t| t.index == active_turtle_res.0);
     file_dialog.show &= curr_turtle.is_some();
     let main_panel = egui::TopBottomPanel::top("TRC").show(contexts.ctx_mut(), move |ui| {
         ui.horizontal_top(|ui| {
@@ -238,9 +246,7 @@ fn ui(
                 c.show_ui(ui, |ui| {
                     ui.style_mut().wrap = Some(false);
                     ui.set_min_width(60.0);
-                    // Hateble (the clone here)
-                    for t in turtles {
-                        info!("turtl: {t:#?}");
+                    for t in online_turtles.iter() {
                         ui.selectable_value(
                             &mut active_turtle_res.0,
                             t.index,
@@ -410,14 +416,14 @@ fn test(
         ws_writer.send(C2SPackets::SendLuaToTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
-            code: format!("turtle.drop{lua_func_suffix}()")
+            code: format!("turtle.drop{lua_func_suffix}()"),
         })
     };
     if input.just_pressed(KeyCode::C) && valid_active_turtle {
         ws_writer.send(C2SPackets::SendLuaToTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
-            code: format!("turtle.suck{lua_func_suffix}()")
+            code: format!("turtle.suck{lua_func_suffix}()"),
         })
     };
     if input.just_pressed(KeyCode::F) && valid_active_turtle {

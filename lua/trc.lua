@@ -36,11 +36,17 @@ function log(...)
     logs:push(out)
 end
 
+local pause_ui_rendering = false
+
 ---@return pos3, orienation
 local function ask_for_coords()
+    pause_ui_rendering = true
+    log("ask_for_coords")
+    util.term_clear()
     settings.define("trc.ask_for_coords",
         { description = "If the Turtle should ask for coordinates and Facing Direction", type = "boolean", default = true })
     if not settings.get("trc.ask_for_coords", true) then
+        pause_ui_rendering = false
         return { x = 0, y = 0, z = 0 }, "North"
     end
     print("Please Input the x,y,z coordinates of the turtle!")
@@ -53,8 +59,7 @@ local function ask_for_coords()
     print("Z:")
     ---@diagnostic disable-next-line: param-type-mismatch
     local z = math.floor(tonumber(io.read()))
-    term.clear()
-    term.setCursorPos(1, 1)
+    util.term_clear()
     print("Thanks Now please input The Direction the turtle points")
     print("Stand Behind the turtle look in the same direction as the turtle and read the Facing Value in the F3 screen")
     local dir = io.read()
@@ -74,6 +79,7 @@ local function ask_for_coords()
     log("successfully asked for coords")
     settings.set("trc.ask_for_coords", false)
     settings.save()
+    pause_ui_rendering = false
     return { x = x, y = y, z = z }, real_dir
 end
 
@@ -107,6 +113,7 @@ end
 
 ---@return pos3, orienation
 local function get_coords_and_orient()
+    log("get_coords_and_orient")
     local modem = peripheral.find("modem", function(_, modem)
         return modem.isWireless()
     end)
@@ -258,9 +265,6 @@ local function handle_ws_close()
         error("Websocket Closed \"nil\"!", url)
     end
 end
-
-
-local pause_ui_rendering = false
 
 local function render_ui()
     if pause_ui_rendering then return end
