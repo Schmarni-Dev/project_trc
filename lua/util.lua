@@ -214,6 +214,15 @@ local networked_turtle_api = M.copy(turtle)
 
 
 ---@diagnostic disable-next-line: duplicate-set-field
+function networked_turtle_api.refuel(count)
+    local s, m = NativeTurtleApi.refuel(count)
+    if s then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        M.send_blocks(NetworkedTurtleMoveWebsocket)
+    end
+    return s, m
+end
+---@diagnostic disable-next-line: duplicate-set-field
 function networked_turtle_api.place(text)
     local s, m = NativeTurtleApi.place(text)
     if s then
@@ -292,7 +301,7 @@ networked_turtle_api.up = function()
     local s, m = NativeTurtleApi.up()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
-        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Up"))
+        M.send(NetworkedTurtleMoveWebsocket, M.BatchPackets(M.ConstructMovePacket("Up"), M.FuelUpdate()))
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send_blocks(NetworkedTurtleMoveWebsocket)
     end
@@ -303,7 +312,7 @@ networked_turtle_api.down = function()
     local s, m = NativeTurtleApi.down()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
-        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Down"))
+        M.send(NetworkedTurtleMoveWebsocket, M.BatchPackets(M.ConstructMovePacket("Down"), M.FuelUpdate()))
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send_blocks(NetworkedTurtleMoveWebsocket)
     end
@@ -314,7 +323,7 @@ networked_turtle_api.forward = function()
     local s, m = NativeTurtleApi.forward()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
-        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Forward"))
+        M.send(NetworkedTurtleMoveWebsocket, M.BatchPackets(M.ConstructMovePacket("Forward"), M.FuelUpdate()))
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send_blocks(NetworkedTurtleMoveWebsocket)
     end
@@ -325,7 +334,7 @@ networked_turtle_api.back = function()
     local s, m = NativeTurtleApi.back()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
-        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Back"))
+        M.send(NetworkedTurtleMoveWebsocket, M.BatchPackets(M.ConstructMovePacket("Back"), M.FuelUpdate()))
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send_blocks(NetworkedTurtleMoveWebsocket)
     end
@@ -336,7 +345,7 @@ networked_turtle_api.turnLeft = function()
     local s, m = NativeTurtleApi.turnLeft()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
-        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Left"))
+        M.send(NetworkedTurtleMoveWebsocket, M.BatchPackets(M.ConstructMovePacket("Left"), M.FuelUpdate()))
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send_blocks(NetworkedTurtleMoveWebsocket)
     end
@@ -347,7 +356,7 @@ networked_turtle_api.turnRight = function()
     local s, m = NativeTurtleApi.turnRight()
     if s then
         ---@diagnostic disable-next-line: param-type-mismatch
-        M.send(NetworkedTurtleMoveWebsocket, M.ConstructMovePacket("Right"))
+        M.send(NetworkedTurtleMoveWebsocket, M.BatchPackets(M.ConstructMovePacket("Right"), M.FuelUpdate()))
         ---@diagnostic disable-next-line: param-type-mismatch
         M.send_blocks(NetworkedTurtleMoveWebsocket)
     end

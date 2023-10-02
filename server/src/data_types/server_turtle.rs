@@ -173,6 +173,7 @@ impl ServerTurtle {
                     .await?;
             }
             T2SPackets::FuelUpdate(fuel) => {
+                info!("turtle foul {fuel}");
                 self.fuel = fuel;
                 self.db
                     .exec(

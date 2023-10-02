@@ -235,6 +235,7 @@ pub async fn main(
                     }
                 }
                 TurtleCommBus::FuelUpdate(index) => {
+                    info!("fuel {index}");
                     let sts = local_server_turtles.lock().await;
                     let t = sts.get_turtle(index);
                     if let Some(t) = t {

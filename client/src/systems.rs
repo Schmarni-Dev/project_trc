@@ -109,7 +109,7 @@ pub fn update_turtle_model(
 }
 
 pub fn move_turtle(
-    mut query: Query<(&TurtleInstance, &mut LerpTransform)>,
+    mut query: Query<(&mut TurtleInstance, &mut LerpTransform)>,
     mut event: EventReader<S2CPackets>,
 ) {
     for msg in event.iter() {
@@ -118,16 +118,18 @@ pub fn move_turtle(
                 query
                     .iter_mut()
                     .filter(|(t, _)| t.index == e.index)
-                    .for_each(|(_t, mut lerp)| {
+                    .for_each(|(mut t, mut lerp)| {
                         lerp.lerp_pos_to(
                             pos3_to_vec3(e.new_pos) + Vec3::splat(0.5),
                             TURTLE_LERP_TIME,
                         );
+                        t.position = e.new_pos;
                         // let w = quat_from_dir(pos3_to_vec3(t.orientation.get_forward_vec()), Vec3::Y);
                         let r = quat_from_dir(
                             pos3_to_vec3(e.new_orientation.get_forward_vec()),
                             Vec3::Y,
                         );
+                        t.orientation = e.new_orientation;
                         lerp.lerp_rot_to(r, TURTLE_LERP_TIME);
                     });
             }

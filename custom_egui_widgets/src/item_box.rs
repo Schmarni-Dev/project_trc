@@ -5,6 +5,7 @@ use egui::{Color32, FontId, Response, RichText, Slider, Stroke, Ui};
 pub enum ItemSlotActions {
     SelectSlot,
     Transfer(u8),
+    Refuel,
 }
 
 pub type TX = mpsc::Sender<(u8, ItemSlotActions)>;
@@ -141,6 +142,9 @@ fn item_box_context_menu_render(
     {
         tx.send((slot_id, ItemSlotActions::Transfer(*amount_modifier)))
             .unwrap();
+    }
+    if ui.button("Refuel using the Selected Slot").clicked() {
+        tx.send((slot_id,ItemSlotActions::Refuel)).unwrap()
     }
     // if ui.button("Move Half of the Selected Stack here").clicked() {
     //     tx.send((slot_id, ItemSlotActions::Transfer(amount / 2)))

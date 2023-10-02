@@ -69,8 +69,6 @@ impl TurtleModels {
     }
 }
 
-pub fn despawn_turtle() {}
-
 pub fn turtle_spawner(
     mut events: EventReader<SpawnTurtle>,
     models: Res<TurtleModels>,

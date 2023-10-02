@@ -278,6 +278,10 @@ fn ui(
                             .build(&t.fuel, &t.max_fuel),
                     );
                     ui.add_space(1.0);
+                    ui.label(format!(
+                        "Turtle Pos: x {}, y {}, z {}",
+                        t.position.x, t.position.y, t.position.z
+                    ))
                 });
             }
         });
@@ -322,6 +326,11 @@ fn ui(
                     index: t.index,
                     world: t.world.clone(),
                     code: format!("turtle.transferTo({slot}, {amount})"),
+                }),
+                ItemSlotActions::Refuel => ws_writer.send(C2SPackets::SendLuaToTurtle {
+                    index: t.index,
+                    world: t.world.clone(),
+                    code: format!("turtle.refuel()"),
                 }),
             }
         }
