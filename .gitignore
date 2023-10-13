@@ -1,5 +1,4 @@
 **/target
 server/db.db
 wasm_output
-client/dist
-client/out
+**/dist
