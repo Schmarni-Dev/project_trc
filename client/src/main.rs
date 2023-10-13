@@ -1,9 +1,9 @@
 use actually_usable_voxel_mesh_gen::util::string_to_color;
-#[allow(unused_imports)]
-use bevy::log::prelude::*;
+use bevy::log::{prelude::*, LogPlugin};
+use bevy::window::Cursor;
 use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
 use bevy_egui::{
-    egui::{self, Align2, Color32, Grid},
+    egui::{self, Align2, Color32, Grid, TextEdit},
     EguiContexts, EguiPlugin, EguiSettings,
 };
 use common::{
@@ -13,6 +13,7 @@ use common::{
     world_data::{get_chunk_containing_block, Chunk},
 };
 use custom_egui_widgets::item_box::{item_box, ItemSlotActions, TX};
+use egui_code_editor::{CodeEditor, Syntax};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
@@ -38,7 +39,10 @@ use trc_client::{
 use trc_client::{input, InputState, WorldState};
 
 fn main() {
-    pretty_env_logger::init_timed();
+    pretty_env_logger::init();
+    color_eyre::install().unwrap();
+     #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
     App::new()
         .insert_resource(AmbientLight {
             color: Color::WHITE,
@@ -52,7 +56,11 @@ fn main() {
             block_camera_updates: false,
         })
         .insert_resource(BlockBlacklist {
-            block_render_blacklist: Arc::new(["minecraft:water".into()]),
+            block_render_blacklist: Arc::new([
+                "minecraft:water".into(),
+                "computercraft:turtle_normal".into(),
+                "computercraft:turtle_advanced".into(),
+            ]),
         })
         .insert_resource(MiscState {
             hovered_block: None,
@@ -63,8 +71,20 @@ fn main() {
             file: PathBuf::default(),
         })
         .insert_resource(DoBlockRaymarch(true))
-        .insert_resource(DirectionalLightShadowMap::default())
-        .add_plugins(DefaultPlugins)
+        .insert_resource(DirectionalLightShadowMap { size: 1024 * 4 })
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "TRC".into(),
+                        fit_canvas_to_parent: true,
+                        // prevent_default_event_handling: true,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+                .disable::<LogPlugin>(),
+        )
         .add_plugins(LookTransformPlugin)
         .add_plugins(OrbitCameraPlugin::new(true))
         .add_plugins(Systems)
@@ -84,7 +104,7 @@ fn main() {
             hanlde_world_updates.run_if(should_handle_world_updates),
         )
         .add_systems(Update, set_world_on_event)
-        .add_systems(Update, animate_light_direction)
+        // .add_systems(Update, animate_light_direction)
         .add_systems(Update, test)
         .add_systems(Update, input::orbit_input_map)
         .add_systems(Update, ui)
@@ -96,6 +116,7 @@ fn main() {
         .run();
 }
 
+#[no_mangle]
 fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowFileDialog>) {
     for ev in dnd_evr.iter() {
         if let FileDragAndDrop::DroppedFile {
@@ -115,6 +136,7 @@ fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowF
     }
 }
 
+#[no_mangle]
 fn handle_world_selection_updates(
     worlds: Res<WorldState>,
     mut old: Local<Option<String>>,
@@ -129,6 +151,7 @@ fn handle_world_selection_updates(
     *old = worlds.curr_world.clone();
 }
 
+#[no_mangle]
 fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>) {
     for p in ws.iter() {
         match p {
@@ -140,10 +163,12 @@ fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>
         }
     }
 }
+#[no_mangle]
 fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.scale_factor = 1.5;
 }
 
+#[no_mangle]
 fn turtle_stuff_update(
     world_state: Res<WorldState>,
     mut turtles: Query<&mut TurtleInstance>,
@@ -186,6 +211,7 @@ fn turtle_stuff_update(
     }
 }
 
+#[no_mangle]
 fn fix_curr_turtle_updates(
     active_turtle_res: Res<ActiveTurtleRes>,
     mut i: Local<i32>,
@@ -197,6 +223,7 @@ fn fix_curr_turtle_updates(
     *i = active_turtle_res.0
 }
 
+#[no_mangle]
 fn ui(
     mut worlds: ResMut<WorldState>,
     mut contexts: EguiContexts,
@@ -209,6 +236,7 @@ fn ui(
     mut do_block_march: ResMut<DoBlockRaymarch>,
     mut item_amount_modifier: Local<u8>,
     mut file_dialog: ResMut<ShowFileDialog>,
+    mut lua_code_str: Local<String>,
 ) {
     if **do_block_march && !input_state.block_camera_updates {
         if let Some(b) = misc_state.hovered_block.as_ref() {
@@ -231,6 +259,7 @@ fn ui(
     let why = online_turtles.clone();
     let curr_turtle = why.iter().find(|t| t.index == active_turtle_res.0);
     file_dialog.show &= curr_turtle.is_some();
+    let ws = &mut ws_writer;
     let main_panel = egui::TopBottomPanel::top("TRC").show(contexts.ctx_mut(), move |ui| {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -281,7 +310,26 @@ fn ui(
                     ui.label(format!(
                         "Turtle Pos: x {}, y {}, z {}",
                         t.position.x, t.position.y, t.position.z
-                    ))
+                    ));
+                    ui.menu_button("Lua Code Console", |ui| {
+                        CodeEditor::default()
+                            .id_source("Lua Console Editor")
+                            .with_syntax(Syntax::lua())
+                            .show(ui, &mut *lua_code_str);
+                        ui.horizontal(|ui| {
+                            if ui.button("Submit").clicked() {
+                                ws.send(C2SPackets::SendLuaToTurtle {
+                                    index: t.index,
+                                    world: t.world.clone(),
+                                    code: (*lua_code_str).clone(),
+                                });
+                                ui.close_menu();
+                            }
+                            if ui.button("Close").clicked() {
+                                ui.close_menu();
+                            }
+                        });
+                    });
                 });
             }
         });
@@ -373,6 +421,7 @@ fn ui(
     }
 }
 
+#[no_mangle]
 fn ib<'a>(
     item: Maybe<Item>,
     slot_id: u8,
@@ -405,6 +454,7 @@ fn ib<'a>(
     )
 }
 
+#[no_mangle]
 fn test(
     input: Res<Input<KeyCode>>,
     mut ws_writer: EventWriter<C2SPackets>,
@@ -416,14 +466,6 @@ fn test(
     if contexts.ctx_mut().wants_keyboard_input() {
         return;
     }
-    // if input.just_pressed(KeyCode::Period) {
-    //     active_turtle_res.0 += 1;
-    //     active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
-    // };
-    // if input.just_pressed(KeyCode::Comma) {
-    //     active_turtle_res.0 -= 1;
-    //     active_turtle_changed.send(ActiveTurtleChanged(active_turtle_res.0));
-    // };
     let up_down_modifier = if input.pressed(KeyCode::ControlLeft) {
         TurtleUpDown::Down
     } else if input.pressed(KeyCode::ShiftLeft) {
@@ -510,6 +552,7 @@ fn test(
     };
 }
 
+#[no_mangle]
 fn setup_turtles(
     mut spwan_turtle: EventWriter<SpawnTurtle>,
     mut ws_reader: EventReader<S2CPackets>,
@@ -539,17 +582,23 @@ fn setup_turtles(
 }
 #[derive(Component)]
 pub struct MainCamera;
+#[no_mangle]
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ws_writer: EventWriter<C2SPackets>,
 ) {
+    // #[cfg(not(target_arch = "wasm32"))]
+    // let zoomies = 1.0;
+    // #[cfg(target_arch = "wasm32")]
+    let zoomies = 0.1;
     commands
         .spawn(Camera3dBundle::default())
         .insert(OrbitCameraBundle::new(
             OrbitCameraController {
                 mouse_rotate_sensitivity: Vec2::splat(0.25),
+                mouse_wheel_zoom_sensitivity: zoomies,
                 ..default()
             },
             Vec3::splat(2.),
@@ -563,6 +612,12 @@ fn setup(
             shadows_enabled: true,
             ..default()
         },
+        transform: Transform::from_rotation(Quat::from_euler(
+            EulerRot::ZYX,
+            0.0,
+            FRAC_PI_4,
+            -FRAC_PI_4,
+        )),
         ..default()
     });
     commands.insert_resource(TurtleModels {
@@ -574,6 +629,7 @@ fn setup(
     ws_writer.send(C2SPackets::RequestWorlds);
 }
 
+#[no_mangle]
 fn set_world_on_event(
     query: Query<Entity, With<ChunkInstance>>,
     mut commands: Commands,
@@ -593,11 +649,13 @@ fn set_world_on_event(
     }
 }
 
+#[no_mangle]
 fn should_handle_world_updates(event: EventReader<S2CPackets>) -> bool {
     let o = event.len() > 0;
     o
 }
 
+#[no_mangle]
 fn hanlde_world_updates(
     mut event: EventReader<S2CPackets>,
     mut query: Query<&mut ChunkInstance>,
@@ -629,6 +687,7 @@ struct ChunkMat(Handle<StandardMaterial>);
 #[derive(Event, Debug, Deref, DerefMut)]
 struct SpawnChunk(Chunk);
 
+#[no_mangle]
 fn handle_chunk_spawning(
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
@@ -644,6 +703,7 @@ fn handle_chunk_spawning(
     }
 }
 
+#[no_mangle]
 fn animate_light_direction(
     time: Res<Time>,
     mut query: Query<&mut Transform, With<DirectionalLight>>,

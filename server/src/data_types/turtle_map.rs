@@ -40,9 +40,8 @@ impl TurtleMap {
                 true => Some(t),
             })
     }
-    pub fn drop_turtle(&mut self, id: &i32) {
-        if let Some(t) = self.0.remove(id) {
-            t.kill();
-        }
+    pub fn drop_turtle(&mut self, id: &i32) -> Option<ServerTurtle> {
+        let t = self.0.remove(id);
+        t
     }
 }

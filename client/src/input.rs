@@ -8,7 +8,6 @@ use smooth_bevy_cameras::controllers::orbit::{ControlEvent, OrbitCameraControlle
 use crate::InputState;
 
 pub fn orbit_input_map(
-    input_state: Res<InputState>,
     mut events: EventWriter<ControlEvent>,
     mut mouse_wheel_reader: EventReader<MouseWheel>,
     mut mouse_motion_events: EventReader<MouseMotion>,
@@ -43,7 +42,7 @@ pub fn orbit_input_map(
         events.send(ControlEvent::Orbit(mouse_rotate_sensitivity * cursor_delta));
     }
 
-    if mouse_buttons.pressed(MouseButton::Right) && keyboard.pressed(KeyCode::ControlLeft) {
+    if mouse_buttons.pressed(MouseButton::Left) && keyboard.pressed(KeyCode::ControlLeft) {
         events.send(ControlEvent::TranslateTarget(
             mouse_translate_sensitivity * cursor_delta,
         ));

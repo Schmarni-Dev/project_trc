@@ -52,6 +52,13 @@ impl DerefMut for ServerTurtle {
         &mut self.inner
     }
 }
+impl Drop for ServerTurtle {
+    fn drop(&mut self) {
+        if let Some(w) = &self.ws_read_task {
+            w.abort()
+        }
+    }
+}
 
 impl ServerTurtle {
     /// Check if inner exists allready in the db, if not make new Turtle else load Turtle from db!
@@ -242,6 +249,7 @@ impl ServerTurtle {
                 .await?;
             }
         }
+
         Ok(())
     }
     #[allow(dead_code)]
@@ -257,12 +265,6 @@ impl ServerTurtle {
 
     pub async fn move_(&mut self, dir: MoveDirection) {
         self.send_ws(S2TPackets::Move(vec![dir])).await;
-    }
-
-    pub fn kill(self) {
-        if let Some(w) = self.ws_read_task {
-            w.abort()
-        }
     }
 
     async fn init(&mut self, mut recv: WsRecv) {

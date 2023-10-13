@@ -156,7 +156,6 @@ pub async fn main(
                         }
                     }
                     C2SPackets::SendLuaToTurtle { index, world, code } => {
-
                         if let Some(t) = local_server_turtles
                             .lock()
                             .await
@@ -164,7 +163,7 @@ pub async fn main(
                         {
                             t.send_ws(S2TPackets::RunLuaCode(code)).await;
                         }
-                    },
+                    }
                 },
             }
         }
@@ -178,7 +177,36 @@ pub async fn main(
             match w {
                 TurtleCommBus::RemoveMe(index) => {
                     info!("/kill @e[type=trutle,id={}] ", &index);
-                    local_server_turtles.lock().await.drop_turtle(&index);
+                    let mut server_turtles = local_server_turtles.lock().await;
+                    let world = server_turtles.drop_turtle(&index).map(|t| t.world.clone());
+                    if let Some(world) = world {
+                        let mut online_turtles = server_turtles
+                            .get_common_turtles()
+                            .into_iter()
+                            .map(|mut t| {
+                                t.is_online = true;
+                                t
+                            })
+                            .filter(|t| t.world == world)
+                            .collect::<Vec<_>>();
+                        let indexes = online_turtles.iter().map(|t| t.index).collect::<Vec<_>>();
+                        let mut turtles = match local_db.get_turtles(&world).await {
+                            Ok(t) => t
+                                .into_iter()
+                                .filter(|t| !indexes.contains(&t.index))
+                                .collect(),
+                            Err(err) => {
+                                error!("{err}");
+                                Vec::new()
+                            }
+                        };
+                        turtles.append(&mut online_turtles);
+                        local_server_clients
+                            .lock()
+                            .await
+                            .broadcast(S2CPackets::SetTurtles(SetTurtlesData { turtles, world }))
+                            .await;
+                    }
                 }
 
                 TurtleCommBus::Packet((i, p)) => {

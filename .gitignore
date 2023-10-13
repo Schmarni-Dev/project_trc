@@ -1,2 +1,3 @@
 **/target
 server/db.db
+wasm_output

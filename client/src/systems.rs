@@ -20,6 +20,7 @@ impl Plugin for Systems {
         app.add_systems(Update, move_turtle);
         app.add_systems(Update, update_turtle_model);
         app.add_systems(Update, update_cam_point_on_turtle_move);
+        app.add_systems(Update, update_cam_point_on_turtle_select);
         app.add_systems(Update, lerp_rot_system);
         app.add_systems(Update, chunk_update_mesh);
         app.add_systems(Update, update_chunk_block_blacklists);
@@ -38,6 +39,20 @@ fn update_chunk_block_blacklists(
             c.inner_mut().blacklist = block_blacklist.block_render_blacklist.clone();
             c.setup = false
         });
+}
+pub fn update_cam_point_on_turtle_select(
+    turtles: Query<(&Transform, &LerpTransform, &TurtleInstance)>,
+    mut cams: Query<&mut LookTransform>,
+    mut event: EventReader<ActiveTurtleChanged>,
+) {
+    for e in event.iter() {
+        for mut cam in cams.iter_mut() {
+            if let Some(t) = turtles.iter().find(|(_, _, t)| t.index == e.0) {
+                cam.eye = (cam.eye - cam.target) + t.0.translation;
+                cam.target = t.0.translation;
+            }
+        }
+    }
 }
 
 pub fn update_cam_point_on_turtle_move(

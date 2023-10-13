@@ -13,16 +13,27 @@ actually_usable_voxel_mesh_gen = { path = "../actually_usable_voxel_mesh_gen" }
 smooth-bevy-cameras = "0.9.0"
 serde_json = "1.0.96"
 url = "2.3.1"
-typetag = "0.2.8"
-tungstenite = "0.19.0"
+# typetag = "0.2.8"
 crossbeam = { version = "0.8.2", features = ["crossbeam-channel"] }
-tokio = { version = "1.28.1", features = ["full"] }
-tokio-tungstenite = "0.19.0"
-future-utils = "0.12.1"
 futures-util = "0.3.28"
 futures-channel = "0.3.28"
 futures = "0.3.28"
 bevy_egui = "0.21.0"
 pretty_env_logger = "0.5.0"
+# you won Cargo! This Abomination is becaus I Cant use 0.1.7 For Some Fucking Reason Only 0.1.8 WHYYY?!
+egui_code_editor = { git = "https://github.com/p4ymak/egui_code_editor.git", rev = "8380768c5cbc39d4e5f4ee7d83d75c8885612604" }
+color-eyre = "0.6.2"
 
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# web-sys = { version = "0.3.64", features = ["WebSocket", "MessageEvent"] }
+# js-sys = { version = "0.3.64" }
+# wasm-bindgen = "0.2.87"
+gloo = "0.10.0"
+console_error_panic_hook = "0.1.7"
+wasm-bindgen-futures = "0.4.37"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tungstenite = "0.19.0"
+tokio = { version = "1.28.1", features = ["full"] }
+tokio-tungstenite = "0.19.0"
