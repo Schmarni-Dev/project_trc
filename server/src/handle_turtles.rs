@@ -31,6 +31,7 @@ pub async fn handle_connection(
         .unwrap();
     while let Some(Ok(msg)) = incoming.next().await {
         if let Message::Text(msg) = msg {
+            info!("{}",msg);
             match from_str::<T2SPackets>(&msg).unwrap() {
                 T2SPackets::Batch(data) => {
                     let info = match data.as_slice() {

@@ -1,7 +1,7 @@
 use bevy::prelude::{Deref, DerefMut};
 
 use crate::{
-    turtle::{self, Inventory, Turtle},
+    turtle::{self, TurtleInventory, Turtle},
     turtle_packets::TurtleUpDown,
     world_data::{Block, World},
     Pos3,
@@ -17,7 +17,7 @@ pub enum C2SPackets {
     TurtleSelectSlot {
         index: i32,
         world: String,
-        slot: u8,
+        slot: u32,
     },
     RequestTurtles(String),
     RequestWorlds,
@@ -65,7 +65,7 @@ pub struct SetTurtlesData {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum S2CPackets {
     MovedTurtle(MovedTurtleData),
-    TurtleInventoryUpdate(UpdateTurtleData<Inventory>),
+    TurtleInventoryUpdate(UpdateTurtleData<TurtleInventory>),
     TurtleFuelUpdate(UpdateTurtleData<i32>),
     SetTurtles(SetTurtlesData),
     Worlds(Vec<String>),

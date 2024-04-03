@@ -147,10 +147,9 @@ end
 
 ---@param ... packet
 ---@return packet
----@diagnostic disable-next-line: unused-vararg
 function M.BatchPackets(...)
     local stuff = {}
-    for i, v in ipairs(arg) do
+    for i,v in ipairs({...}) do
         stuff[i] = v
     end
     return { Batch = stuff }

@@ -1,11 +1,14 @@
 local util_request = http.get("http://schmerver.mooo.com:63190/util.lua")
 
 if util_request == nil then return end
+-- printError(util_request)
 local util_code = util_request.readAll()
 util_request.close()
 if util_code == nil then return end
+-- printError(util_code)
 ---@module 'util'
 local util = assert(loadstring(util_code))()
+-- printError(textutils.serialize(util))
 
 
 
@@ -18,10 +21,8 @@ local functions = util.new_queue()
 ---@diagnostic disable-next-line: lowercase-global, unused-vararg
 function log(...)
     local time = os.date("%S:%M:%H")
-    ---@type any[]
-    local arg = arg
     local out = "[" .. time .. "]"
-    for _, value in ipairs(arg) do
+    for _, value in ipairs({...}) do
         if type(value) == "table" then
             value = textutils.serialise(value)
         end
@@ -250,7 +251,7 @@ local function connect_ws()
     local err = nil
     ---@diagnostic disable-next-line: cast-local-type
     ws, err = http.websocket(ws_url)
-    if ws == false then
+    if ws == nil or ws == false then
         error(err)
         return
     end

@@ -1,6 +1,8 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-#[derive(Default, serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Hash, Eq)]
+#[derive(
+    Default, serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Hash, Eq, PartialEq,
+)]
 pub struct Pos3 {
     pub x: i32,
     pub y: i32,
@@ -20,12 +22,6 @@ impl Pos3 {
     }
     pub fn scale(&self, scaler: i32) -> Pos3 {
         Pos3::new(self.x * scaler, self.y * scaler, self.z * scaler)
-    }
-}
-
-impl PartialEq for Pos3 {
-    fn eq(&self, other: &Self) -> bool {
-        self.x == other.x && self.y == other.y && self.z == other.z
     }
 }
 impl<'a> Add<&'a Pos3> for Pos3 {

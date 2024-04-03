@@ -5,8 +5,6 @@ use bevy::{
 use bevy_egui::EguiContexts;
 use smooth_bevy_cameras::controllers::orbit::{ControlEvent, OrbitCameraController};
 
-use crate::InputState;
-
 pub fn orbit_input_map(
     mut events: EventWriter<ControlEvent>,
     mut mouse_wheel_reader: EventReader<MouseWheel>,
@@ -34,7 +32,7 @@ pub fn orbit_input_map(
     } = *controller;
 
     let mut cursor_delta = Vec2::ZERO;
-    for event in mouse_motion_events.iter() {
+    for event in mouse_motion_events.read() {
         cursor_delta += event.delta;
     }
 
@@ -49,7 +47,7 @@ pub fn orbit_input_map(
     }
 
     let mut scalar = 1.0;
-    for event in mouse_wheel_reader.iter() {
+    for event in mouse_wheel_reader.read() {
         // scale the event magnitude per pixel or per line
         let scroll_amount = match event.unit {
             MouseScrollUnit::Line => event.y,

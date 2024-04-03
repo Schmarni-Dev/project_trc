@@ -1,6 +1,6 @@
 use bevy::{log::prelude::*, prelude::*};
 use common::client_packets::{C2SPackets, S2CPackets};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use futures_util::{stream::{SplitSink, SplitStream}, SinkExt, StreamExt};
 use gloo::net::websocket::{futures::WebSocket, Message};
 use gloo::render::{request_animation_frame, AnimationFrame};
@@ -48,8 +48,8 @@ async fn read(
             info!("message send");
         }
         Err(err) => match err {
-            crossbeam::channel::TryRecvError::Empty => (),
-            crossbeam::channel::TryRecvError::Disconnected => {
+            crossbeam_channel::TryRecvError::Empty => (),
+            crossbeam_channel::TryRecvError::Disconnected => {
                 error!("ws closed");
             }
         },
@@ -108,7 +108,7 @@ impl WsCommunicator {
 #[no_mangle]
 #[allow(dead_code)]
 fn test_ws(mut read: EventReader<S2CPackets>) {
-    for p in read.iter() {
+    for p in read.read() {
         info!("{:#?}", p)
     }
 }
@@ -122,7 +122,7 @@ pub fn run_ws(
     for i in socket.from_server.try_iter() {
         write.send(i)
     }
-    for i in read.iter() {
+    for i in read.read() {
         _ = socket.to_server.try_send(i.to_owned());
     }
 }

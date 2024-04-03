@@ -1,35 +1,55 @@
 use std::str::FromStr;
 
-use bevy::prelude::{Deref, DerefMut};
+use bevy::{
+    prelude::{Deref, DerefMut},
+    reflect::Reflect,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Reflect)]
 pub enum Maybe<T> {
     Some(T),
     None,
 }
 
-impl<T> Into<Option<T>> for Maybe<T> {
-    fn into(self) -> Option<T> {
-        match self {
+impl<T> From<Maybe<T>> for Option<T> {
+    fn from(val: Maybe<T>) -> Self {
+        match val {
             Maybe::None => None,
             Maybe::Some(data) => Some(data),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Deref, DerefMut)]
+#[derive(Serialize, Deserialize, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct Inventory {
+    #[deref]
+    pub inv: Vec<Maybe<Item>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Deref, DerefMut)]
+pub struct TurtleInventory {
     pub selected_slot: u8,
     #[deref]
     pub inv: [Maybe<Item>; 16],
 }
+impl IntoIterator for Inventory {
+    type Item = (u32, Maybe<Item>);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        let mut data = Vec::new();
+        self.inv.into_iter().zip(0u32..).for_each(|(item, index)| {
+            data.push((index, item));
+        });
+        data.into_iter()
+    }
+}
 
-impl Default for Inventory {
+impl Default for TurtleInventory {
     fn default() -> Self {
-        Inventory {
+        TurtleInventory {
             selected_slot: 1,
             inv: [
                 Maybe::None,
@@ -53,7 +73,7 @@ impl Default for Inventory {
     }
 }
 
-impl IntoIterator for Inventory {
+impl IntoIterator for TurtleInventory {
     type Item = (u8, Maybe<Item>);
     type IntoIter = std::vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
@@ -65,9 +85,9 @@ impl IntoIterator for Inventory {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Reflect)]
 pub struct Item {
-    pub count: u8,
+    pub count: u32,
     pub name: String,
 }
 
@@ -78,7 +98,7 @@ pub type TurtleIndexType = i32;
 pub struct Turtle {
     pub index: TurtleIndexType,
     pub name: String,
-    pub inventory: Inventory,
+    pub inventory: TurtleInventory,
     pub position: Pos3,
     pub orientation: Orientation,
     pub fuel: i32,
@@ -146,7 +166,7 @@ impl Turtle {
         Turtle::new(
             index,
             String::default(),
-            Inventory::default(),
+            TurtleInventory::default(),
             pos,
             orientation,
             0,
@@ -158,7 +178,7 @@ impl Turtle {
     pub fn new(
         index: TurtleIndexType,
         name: String,
-        inventory: Inventory,
+        inventory: TurtleInventory,
         position: Pos3,
         orientation: Orientation,
         fuel: i32,

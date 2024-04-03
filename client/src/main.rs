@@ -1,11 +1,12 @@
+#![allow(clippy::too_many_arguments)]
 use actually_usable_voxel_mesh_gen::util::string_to_color;
 use bevy::log::{prelude::*, LogPlugin};
-use bevy::window::Cursor;
 use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
 use bevy_egui::{
-    egui::{self, Align2, Color32, Grid, TextEdit},
+    egui::{self, Color32, Grid},
     EguiContexts, EguiPlugin, EguiSettings,
 };
+use bevy_mod_raycast::DefaultRaycastingPlugin;
 use common::{
     client_packets::{C2SPackets, S2CPackets, SetTurtlesData},
     turtle::{Item, Maybe, MoveDirection},
@@ -18,6 +19,7 @@ use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
+use trc_client::external_inv_support::ExternalInvSupportPlugin;
 use std::{
     f32::consts::FRAC_PI_4,
     fs,
@@ -38,10 +40,11 @@ use trc_client::{
 };
 use trc_client::{input, InputState, WorldState};
 
+
 fn main() {
     pretty_env_logger::init();
     color_eyre::install().unwrap();
-     #[cfg(target_arch = "wasm32")]
+    #[cfg(target_arch = "wasm32")]
     console_error_panic_hook::set_once();
     App::new()
         .insert_resource(AmbientLight {
@@ -87,11 +90,13 @@ fn main() {
         )
         .add_plugins(LookTransformPlugin)
         .add_plugins(OrbitCameraPlugin::new(true))
+        .add_plugins(DefaultRaycastingPlugin)
         .add_plugins(Systems)
         .add_plugins(WS)
         .add_plugins(EventsPlugin)
         .add_plugins(EguiPlugin)
         .add_plugins(RaycastPlugin)
+        .add_plugins(ExternalInvSupportPlugin)
         .add_event::<SpawnTurtle>()
         .add_event::<SpawnChunk>()
         .add_systems(Startup, setup)
@@ -101,7 +106,7 @@ fn main() {
         .add_systems(Update, handle_chunk_spawning)
         .add_systems(
             Update,
-            hanlde_world_updates.run_if(should_handle_world_updates),
+            hanlde_world_updates.run_if(on_event::<S2CPackets>()),
         )
         .add_systems(Update, set_world_on_event)
         // .add_systems(Update, animate_light_direction)
@@ -116,9 +121,8 @@ fn main() {
         .run();
 }
 
-#[no_mangle]
 fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowFileDialog>) {
-    for ev in dnd_evr.iter() {
+    for ev in dnd_evr.read() {
         if let FileDragAndDrop::DroppedFile {
             window: _,
             path_buf,
@@ -136,7 +140,6 @@ fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowF
     }
 }
 
-#[no_mangle]
 fn handle_world_selection_updates(
     worlds: Res<WorldState>,
     mut old: Local<Option<String>>,
@@ -151,30 +154,24 @@ fn handle_world_selection_updates(
     *old = worlds.curr_world.clone();
 }
 
-#[no_mangle]
 fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>) {
-    for p in ws.iter() {
-        match p {
-            S2CPackets::Worlds(w) => {
-                worlds.curr_world = w.first().cloned();
-                worlds.worlds = w.to_owned();
-            }
-            _ => (),
+    for p in ws.read() {
+        if let S2CPackets::Worlds(w) = p {
+            worlds.curr_world = w.first().cloned();
+            worlds.worlds = w.to_owned();
         }
     }
 }
-#[no_mangle]
 fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.scale_factor = 1.5;
 }
 
-#[no_mangle]
 fn turtle_stuff_update(
     world_state: Res<WorldState>,
     mut turtles: Query<&mut TurtleInstance>,
     mut ws_reader: EventReader<S2CPackets>,
 ) {
-    for p in ws_reader.iter() {
+    for p in ws_reader.read() {
         match p {
             S2CPackets::TurtleInventoryUpdate(data) => {
                 if world_state
@@ -202,7 +199,7 @@ fn turtle_stuff_update(
                         .find(|t| t.index == data.index)
                         .iter_mut()
                         .for_each(|t| {
-                            t.fuel = data.data.clone();
+                            t.fuel = data.data;
                         });
                 }
             }
@@ -211,7 +208,6 @@ fn turtle_stuff_update(
     }
 }
 
-#[no_mangle]
 fn fix_curr_turtle_updates(
     active_turtle_res: Res<ActiveTurtleRes>,
     mut i: Local<i32>,
@@ -223,7 +219,6 @@ fn fix_curr_turtle_updates(
     *i = active_turtle_res.0
 }
 
-#[no_mangle]
 fn ui(
     mut worlds: ResMut<WorldState>,
     mut contexts: EguiContexts,
@@ -250,10 +245,7 @@ fn ui(
     input_state.block_camera_updates = false;
     let online_turtles = turtles
         .iter()
-        .filter(|t| {
-            let w = t.turtle.is_online;
-            return w;
-        })
+        .filter(|t| t.turtle.is_online)
         .map(|t| t.deref().clone())
         .collect::<Vec<_>>();
     let why = online_turtles.clone();
@@ -264,7 +256,7 @@ fn ui(
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 // ui.spacing_mut().interact_size.y *= 1.5;
-                ui.checkbox(&mut *do_block_march, "Block Raymarching");
+                ui.checkbox(&mut do_block_march, "Block Raycast");
                 let mut c = egui::ComboBox::from_label("World");
                 if let Some(w) = &worlds.curr_world {
                     c = c.selected_text(w);
@@ -281,7 +273,7 @@ fn ui(
                 // Turtles
                 let mut c = egui::ComboBox::from_label("Turtle");
                 if let Some(t) = &curr_turtle {
-                    c = c.selected_text(&format!("{}: {}", &t.index, &t.name));
+                    c = c.selected_text(format!("{}: {}", &t.index, &t.name));
                 }
 
                 c.show_ui(ui, |ui| {
@@ -315,7 +307,7 @@ fn ui(
                         CodeEditor::default()
                             .id_source("Lua Console Editor")
                             .with_syntax(Syntax::lua())
-                            .show(ui, &mut *lua_code_str);
+                            .show(ui, &mut lua_code_str);
                         ui.horizontal(|ui| {
                             if ui.button("Submit").clicked() {
                                 ws.send(C2SPackets::SendLuaToTurtle {
@@ -349,13 +341,7 @@ fn ui(
                     .spacing(egui::Vec2::splat(2.0))
                     .show(ui, |ui| {
                         for (item, i) in inv {
-                            ui.add(ib(
-                                item,
-                                i + 1,
-                                tx.clone(),
-                                slot,
-                                &mut *item_amount_modifier,
-                            ));
+                            ui.add(ib(item, i as u32 + 1, tx.clone(), slot as u32, &mut item_amount_modifier));
                             if i % 4 == 3 {
                                 ui.end_row();
                             }
@@ -378,7 +364,7 @@ fn ui(
                 ItemSlotActions::Refuel => ws_writer.send(C2SPackets::SendLuaToTurtle {
                     index: t.index,
                     world: t.world.clone(),
-                    code: format!("turtle.refuel()"),
+                    code: "turtle.refuel()".to_string(),
                 }),
             }
         }
@@ -421,25 +407,23 @@ fn ui(
     }
 }
 
-#[no_mangle]
-fn ib<'a>(
+fn ib(
     item: Maybe<Item>,
-    slot_id: u8,
+    slot_id: u32,
     tx: TX,
-    selected: u8,
-    amount_modifier: &'a mut u8,
-) -> impl egui::Widget + 'a {
+    selected: u32,
+    amount_modifier: &mut u8,
+) -> impl egui::Widget + '_ {
     let item: Option<Item> = item.into();
     let color = match item.clone() {
         None => Color32::DARK_GRAY,
         Some(it) => {
             let color: [u8; 3] = string_to_color(&it.name)[0..3].try_into().unwrap();
-            let c = Color32::from_rgb(
+            Color32::from_rgb(
                 (color[0] >> 1) | 128u8,
                 (color[1] >> 1) | 128u8,
                 (color[2] >> 1) | 128u8,
-            );
-            c
+            )
         }
     };
     item_box(
@@ -454,7 +438,6 @@ fn ib<'a>(
     )
 }
 
-#[no_mangle]
 fn test(
     input: Res<Input<KeyCode>>,
     mut ws_writer: EventWriter<C2SPackets>,
@@ -552,7 +535,6 @@ fn test(
     };
 }
 
-#[no_mangle]
 fn setup_turtles(
     mut spwan_turtle: EventWriter<SpawnTurtle>,
     mut ws_reader: EventReader<S2CPackets>,
@@ -561,28 +543,24 @@ fn setup_turtles(
     query: Query<Entity, With<TurtleInstance>>,
     mut commands: Commands,
 ) {
-    for p in ws_reader.iter() {
-        match p.to_owned() {
-            S2CPackets::SetTurtles(SetTurtlesData { turtles, world }) => {
-                if world_state.curr_world.as_ref().is_some_and(|w| w == &world) {
-                    query.iter().for_each(|entity| {
-                        commands.entity(entity).despawn_recursive();
+    for p in ws_reader.read() {
+        if let S2CPackets::SetTurtles(SetTurtlesData { turtles, world }) = p.to_owned() {
+            if world_state.curr_world.as_ref().is_some_and(|w| w == &world) {
+                query.iter().for_each(|entity| {
+                    commands.entity(entity).despawn_recursive();
+                });
+                turtles.into_iter().for_each(|t| {
+                    spwan_turtle.send(SpawnTurtle {
+                        active: active_turtle_res.0 == t.index && t.is_online,
+                        turtle: t,
                     });
-                    turtles.into_iter().for_each(|t| {
-                        spwan_turtle.send(SpawnTurtle {
-                            active: active_turtle_res.0 == t.index && t.is_online,
-                            turtle: t,
-                        });
-                    });
-                }
+                });
             }
-            _ => {}
         }
     }
 }
 #[derive(Component)]
 pub struct MainCamera;
-#[no_mangle]
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -629,14 +607,13 @@ fn setup(
     ws_writer.send(C2SPackets::RequestWorlds);
 }
 
-#[no_mangle]
 fn set_world_on_event(
     query: Query<Entity, With<ChunkInstance>>,
     mut commands: Commands,
     mut event: EventReader<S2CPackets>,
     mut chunk_spawn: EventWriter<SpawnChunk>,
 ) {
-    for e in event.iter() {
+    for e in event.read() {
         if let S2CPackets::SetWorld(world) = e {
             query.for_each(|entity| {
                 commands.entity(entity).despawn_recursive();
@@ -649,19 +626,12 @@ fn set_world_on_event(
     }
 }
 
-#[no_mangle]
-fn should_handle_world_updates(event: EventReader<S2CPackets>) -> bool {
-    let o = event.len() > 0;
-    o
-}
-
-#[no_mangle]
 fn hanlde_world_updates(
     mut event: EventReader<S2CPackets>,
     mut query: Query<&mut ChunkInstance>,
     mut chunk_spawn: EventWriter<SpawnChunk>,
 ) {
-    for e in event.iter() {
+    for e in event.read() {
         if let S2CPackets::WorldUpdate(block) = e {
             let chunk_pos = get_chunk_containing_block(block.get_pos());
             match query
@@ -687,14 +657,13 @@ struct ChunkMat(Handle<StandardMaterial>);
 #[derive(Event, Debug, Deref, DerefMut)]
 struct SpawnChunk(Chunk);
 
-#[no_mangle]
 fn handle_chunk_spawning(
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     mut event: EventReader<SpawnChunk>,
     chunk_mat: Res<ChunkMat>,
 ) {
-    for e in event.iter() {
+    for e in event.read() {
         commands.spawn(ChunkBundle::new(
             ClientChunk::from_chunk(e.0.clone()),
             &mut meshes,
@@ -703,17 +672,16 @@ fn handle_chunk_spawning(
     }
 }
 
-#[no_mangle]
-fn animate_light_direction(
-    time: Res<Time>,
-    mut query: Query<&mut Transform, With<DirectionalLight>>,
-) {
-    for mut transform in &mut query {
-        transform.rotation = Quat::from_euler(
-            EulerRot::ZYX,
-            0.0,
-            time.elapsed_seconds() * std::f32::consts::PI / 5.0,
-            -FRAC_PI_4,
-        );
-    }
-}
+// fn animate_light_direction(
+//     time: Res<Time>,
+//     mut query: Query<&mut Transform, With<DirectionalLight>>,
+// ) {
+//     for mut transform in &mut query {
+//         transform.rotation = Quat::from_euler(
+//             EulerRot::ZYX,
+//             0.0,
+//             time.elapsed_seconds() * std::f32::consts::PI / 5.0,
+//             -FRAC_PI_4,
+//         );
+//     }
+// }

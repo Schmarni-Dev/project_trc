@@ -12,6 +12,7 @@ pub mod systems;
 pub mod turtle_stuff;
 pub mod util;
 pub mod ws;
+pub mod external_inv_support;
 
 #[derive(Resource)]
 pub struct WorldState {

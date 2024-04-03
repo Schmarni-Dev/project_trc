@@ -2,18 +2,16 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use axum::{
-    extract::{State},
+    extract::State,
     routing::{get, post},
     Json, Router,
 };
 use backend::{db::DB, *};
 use common::turtle_packets::{SetupInfoData, T2SPackets};
 
-
 use futures_util::{
     pin_mut,
     stream::{SplitSink, SplitStream},
-    StreamExt,
 };
 
 use log::info;
@@ -41,7 +39,7 @@ async fn add_world(State(db): State<Arc<DB>>, name: String) {
 #[tokio::main]
 async fn main() -> Result<()> {
     // minutes wasted on trying to find an issue the it was just the logger being wongly configured: 10
-    let _ = pretty_env_logger::formatted_timed_builder()
+    pretty_env_logger::formatted_timed_builder()
         .filter(None, log::LevelFilter::Warn)
         .filter(Some("backend"), log::LevelFilter::Debug)
         .init();
@@ -50,10 +48,12 @@ async fn main() -> Result<()> {
         .route("/get_worlds", get(get_worlds))
         .route("/add_world", post(add_world))
         .with_state(db.clone());
-
-    tokio::spawn(
-        axum::Server::bind(&"0.0.0.0:9003".parse().unwrap()).serve(app.into_make_service()),
-    );
+    let axum_listener = tokio::net::TcpListener::bind("0.0.0.0:9003").await?;
+    tokio::spawn(async {
+        axum::serve(axum_listener, app.into_make_service())
+            .await
+            .unwrap()
+    });
 
     let client_addr = "0.0.0.0:9001";
     let turtle_addr = "0.0.0.0:9002";

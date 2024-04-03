@@ -8,8 +8,11 @@ use crate::{
     idk::do_mesh_shit,
     turtle_stuff::{TurtleInstance, TurtleModels, TURTLE_LERP_TIME},
     util::{pos3_to_vec3, quat_from_dir},
-    BlockBlacklist, MiscState,
+    BlockBlacklist,
 };
+
+#[derive(Clone, Copy, Component, Reflect)]
+pub struct ActiveTurtle;
 
 pub struct Systems;
 
@@ -19,11 +22,32 @@ impl Plugin for Systems {
         app.add_systems(Update, lerp_pos_system);
         app.add_systems(Update, move_turtle);
         app.add_systems(Update, update_turtle_model);
+        app.add_systems(Update, update_turtle_component);
         app.add_systems(Update, update_cam_point_on_turtle_move);
         app.add_systems(Update, update_cam_point_on_turtle_select);
         app.add_systems(Update, lerp_rot_system);
         app.add_systems(Update, chunk_update_mesh);
         app.add_systems(Update, update_chunk_block_blacklists);
+    }
+}
+
+fn update_turtle_component(
+    turtles: Query<(Entity, &TurtleInstance, Has<ActiveTurtle>)>,
+    mut cmds: Commands,
+    mut event: EventReader<ActiveTurtleChanged>,
+) {
+    for active in event.read() {
+        for (e, t, a) in &turtles {
+            match (a, t.index == active.0) {
+                (false, true) => {
+                    cmds.entity(e).insert(ActiveTurtle);
+                }
+                (true, false) => {
+                    cmds.entity(e).remove::<ActiveTurtle>();
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -45,7 +69,7 @@ pub fn update_cam_point_on_turtle_select(
     mut cams: Query<&mut LookTransform>,
     mut event: EventReader<ActiveTurtleChanged>,
 ) {
-    for e in event.iter() {
+    for e in event.read() {
         for mut cam in cams.iter_mut() {
             if let Some(t) = turtles.iter().find(|(_, _, t)| t.index == e.0) {
                 cam.eye = (cam.eye - cam.target) + t.0.translation;
@@ -113,7 +137,7 @@ pub fn update_turtle_model(
     mut query: Query<(Entity, &TurtleInstance)>,
     mut event: EventReader<ActiveTurtleChanged>,
 ) {
-    for e in event.iter() {
+    for e in event.read() {
         query.iter_mut().for_each(|(entity, t)| {
             commands
                 .entity(entity)
@@ -127,28 +151,20 @@ pub fn move_turtle(
     mut query: Query<(&mut TurtleInstance, &mut LerpTransform)>,
     mut event: EventReader<S2CPackets>,
 ) {
-    for msg in event.iter() {
-        match msg {
-            S2CPackets::MovedTurtle(e) => {
-                query
-                    .iter_mut()
-                    .filter(|(t, _)| t.index == e.index)
-                    .for_each(|(mut t, mut lerp)| {
-                        lerp.lerp_pos_to(
-                            pos3_to_vec3(e.new_pos) + Vec3::splat(0.5),
-                            TURTLE_LERP_TIME,
-                        );
-                        t.position = e.new_pos;
-                        // let w = quat_from_dir(pos3_to_vec3(t.orientation.get_forward_vec()), Vec3::Y);
-                        let r = quat_from_dir(
-                            pos3_to_vec3(e.new_orientation.get_forward_vec()),
-                            Vec3::Y,
-                        );
-                        t.orientation = e.new_orientation;
-                        lerp.lerp_rot_to(r, TURTLE_LERP_TIME);
-                    });
-            }
-            _ => (),
+    for msg in event.read() {
+        if let S2CPackets::MovedTurtle(e) = msg {
+            query
+                .iter_mut()
+                .filter(|(t, _)| t.index == e.index)
+                .for_each(|(mut t, mut lerp)| {
+                    lerp.lerp_pos_to(pos3_to_vec3(e.new_pos) + Vec3::splat(0.5), TURTLE_LERP_TIME);
+                    t.position = e.new_pos;
+                    // let w = quat_from_dir(pos3_to_vec3(t.orientation.get_forward_vec()), Vec3::Y);
+                    let r =
+                        quat_from_dir(pos3_to_vec3(e.new_orientation.get_forward_vec()), Vec3::Y);
+                    t.orientation = e.new_orientation;
+                    lerp.lerp_rot_to(r, TURTLE_LERP_TIME);
+                });
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    turtle::{Inventory, Maybe, MoveDirection, Orientation, TurtleIndexType},
+    turtle::{TurtleInventory, Maybe, MoveDirection, Orientation, TurtleIndexType},
     Pos3,
 };
 
@@ -29,7 +29,7 @@ pub enum T2SPackets {
     SetPos(Pos3),
     SetOrientation(Orientation),
     WorldUpdate(String),
-    InventoryUpdate(Inventory),
+    InventoryUpdate(TurtleInventory),
     NameUpdate(String),
     FuelUpdate(i32),
     Blocks {
@@ -42,7 +42,7 @@ pub enum T2SPackets {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum S2TPackets {
     Move(Vec<MoveDirection>),
-    SelectSlot(u8),
+    SelectSlot(u32),
     PlaceBlock {
         dir: TurtleUpDown,
         text: Option<String>,

@@ -8,18 +8,18 @@ pub enum ItemSlotActions {
     Refuel,
 }
 
-pub type TX = mpsc::Sender<(u8, ItemSlotActions)>;
+pub type TX = mpsc::Sender<(u32, ItemSlotActions)>;
 
-pub fn item_box<'a>(
-    amount: u8,
+pub fn item_box(
+    amount: u32,
     name: Rc<str>,
     color: Color32,
     scale: f32,
-    slot_id: u8,
+    slot_id: u32,
     tx: TX,
     selected: bool,
-    amount_modifier: &'a mut u8,
-) -> impl egui::Widget + 'a {
+    amount_modifier: &mut u8,
+) -> impl egui::Widget + '_ {
     move |ui: &mut Ui| {
         item_box_render(
             ui,
@@ -43,23 +43,23 @@ fn get_gray_scale(color: &Color32) -> f32 {
     return luma;
 }
 
-fn item_box_context_menu<'a>(
-    slot_id: u8,
-    amount: u8,
+fn item_box_context_menu(
+    slot_id: u32,
+    amount: u32,
     name: Rc<str>,
     tx: TX,
-    amount_modifier: &'a mut u8,
-) -> impl FnOnce(&mut Ui) + 'a {
+    amount_modifier: &mut u8,
+) -> impl FnOnce(&mut Ui) + '_ {
     move |ui: &mut Ui| item_box_context_menu_render(ui, name, amount, slot_id, tx, amount_modifier)
 }
 
 fn item_box_render(
     ui: &mut Ui,
-    amount: u8,
+    amount: u32,
     name: Rc<str>,
     color: Color32,
     scale: f32,
-    slot_id: u8,
+    slot_id: u32,
     tx: TX,
     selected: bool,
     amount_modifier: &mut u8,
@@ -89,7 +89,7 @@ fn item_box_render(
     }
 
     if ui.is_rect_visible(rect) {
-        ui.painter().rect_filled(rect, 8.0 * scale, color.clone());
+        ui.painter().rect_filled(rect, 8.0 * scale, color);
         if selected {
             ui.painter().rect_stroke(
                 rect,
@@ -113,8 +113,8 @@ fn item_box_render(
 fn item_box_context_menu_render(
     ui: &mut Ui,
     name: Rc<str>,
-    amount: u8,
-    slot_id: u8,
+    amount: u32,
+    slot_id: u32,
     tx: TX,
     amount_modifier: &mut u8,
 ) {

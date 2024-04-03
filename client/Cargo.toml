@@ -6,34 +6,30 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.11.2", features = ["wayland"] }
-common = { path = "../common" }
-custom_egui_widgets = { path = "../custom_egui_widgets" }
-actually_usable_voxel_mesh_gen = { path = "../actually_usable_voxel_mesh_gen" }
-smooth-bevy-cameras = "0.9.0"
-serde_json = "1.0.96"
-url = "2.3.1"
-# typetag = "0.2.8"
-crossbeam = { version = "0.8.2", features = ["crossbeam-channel"] }
-futures-util = "0.3.28"
-futures-channel = "0.3.28"
-futures = "0.3.28"
-bevy_egui = "0.21.0"
-pretty_env_logger = "0.5.0"
-# you won Cargo! This Abomination is becaus I Cant use 0.1.7 For Some Fucking Reason Only 0.1.8 WHYYY?!
-egui_code_editor = { git = "https://github.com/p4ymak/egui_code_editor.git", rev = "8380768c5cbc39d4e5f4ee7d83d75c8885612604" }
-color-eyre = "0.6.2"
+bevy.workspace =true
+common.workspace =true
+custom_egui_widgets.workspace = true
+actually_usable_voxel_mesh_gen.workspace = true
+smooth-bevy-cameras.workspace = true
+serde_json.workspace = true
+url.workspace = true
+crossbeam-channel.workspace = true
+futures-util.workspace = true
+futures-channel.workspace = true
+futures.workspace = true
+bevy_egui.workspace = true
+pretty_env_logger.workspace = true
+egui_code_editor.workspace = true
+color-eyre.workspace = true
+bevy_mod_raycast.workspace = true
 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-# web-sys = { version = "0.3.64", features = ["WebSocket", "MessageEvent"] }
-# js-sys = { version = "0.3.64" }
-# wasm-bindgen = "0.2.87"
-gloo = "0.10.0"
-console_error_panic_hook = "0.1.7"
-wasm-bindgen-futures = "0.4.37"
+gloo.workspace = true
+console_error_panic_hook.workspace = true
+wasm-bindgen-futures.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tungstenite = "0.19.0"
-tokio = { version = "1.28.1", features = ["full"] }
-tokio-tungstenite = "0.19.0"
+tungstenite.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true

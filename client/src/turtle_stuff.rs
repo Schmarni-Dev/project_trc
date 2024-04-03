@@ -74,7 +74,7 @@ pub fn turtle_spawner(
     models: Res<TurtleModels>,
     mut commands: Commands,
 ) {
-    for t in events.iter() {
+    for t in events.read() {
         let end_pos = pos3_to_vec3(t.turtle.position) + Vec3::splat(0.5);
         let mut lerp = LerpTransform::new(
             end_pos - Vec3::NEG_Y,
