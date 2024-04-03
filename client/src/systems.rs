@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::render_asset::RenderAssetUsages};
 use common::client_packets::S2CPackets;
 use smooth_bevy_cameras::LookTransform;
 
@@ -104,7 +104,10 @@ pub fn chunk_update_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for (entity, chunk_instance) in query.iter() {
-        let mut mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
+        let mut mesh = Mesh::new(
+            bevy::render::render_resource::PrimitiveTopology::TriangleList,
+            RenderAssetUsages::MAIN_WORLD,
+        );
         do_mesh_shit(&mut mesh, chunk_instance);
         commands.entity(entity).remove::<Handle<Mesh>>();
         commands.entity(entity).insert(meshes.add(mesh));

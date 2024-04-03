@@ -70,15 +70,14 @@ fn item_box_render(
     let inver = 1.0 - luma.clamp(0.0, 1.0);
     let gray_color = Color32::from_gray(((255u8 as f32 * inver) as i64).try_into().unwrap());
 
-    response = response
-        .context_menu(item_box_context_menu(
-            slot_id,
-            amount,
-            name.clone(),
-            tx.clone(),
-            amount_modifier,
-        ))
-        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    response.context_menu(item_box_context_menu(
+        slot_id,
+        amount,
+        name.clone(),
+        tx.clone(),
+        amount_modifier,
+    ));
+    // .on_hover_cursor(egui::CursorIcon::PointingHand);
     if amount != 0 {
         response = response
             .on_hover_text_at_pointer(RichText::new(name.as_ref()).strong().monospace().heading());
@@ -144,7 +143,7 @@ fn item_box_context_menu_render(
             .unwrap();
     }
     if ui.button("Refuel using the Selected Slot").clicked() {
-        tx.send((slot_id,ItemSlotActions::Refuel)).unwrap()
+        tx.send((slot_id, ItemSlotActions::Refuel)).unwrap()
     }
     // if ui.button("Move Half of the Selected Stack here").clicked() {
     //     tx.send((slot_id, ItemSlotActions::Transfer(amount / 2)))

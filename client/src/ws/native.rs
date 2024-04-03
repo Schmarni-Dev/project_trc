@@ -126,7 +126,7 @@ pub fn run_ws(
     mut write: EventWriter<S2CPackets>,
 ) {
     for i in socket.from_server.try_iter() {
-        write.send(i)
+        write.send(i);
     }
     for i in read.read() {
         _ = socket.to_server.try_send(i.to_owned());

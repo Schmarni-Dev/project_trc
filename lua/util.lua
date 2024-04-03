@@ -125,7 +125,7 @@ end
 
 ---@return packet
 function M.InventoryUpdate()
-    ---@type Maybe<turtleDetails>[]
+    ---@type Maybe<ccTweaked.turtle.slotInfoDetailed>[]
     local items = {}
     for i = 1, 16, 1 do
         items[i] = M.maybe(NativeTurtleApi.getItemDetail(i))
@@ -149,7 +149,7 @@ end
 ---@return packet
 function M.BatchPackets(...)
     local stuff = {}
-    for i,v in ipairs({...}) do
+    for i, v in ipairs({ ... }) do
         stuff[i] = v
     end
     return { Batch = stuff }
@@ -162,7 +162,7 @@ function M.ConstructBlocksPacket(up, down, front)
     return { Blocks = { up, down, front } }
 end
 
----@param data string | inspectInfo
+---@param data string | ccTweaked.turtle.inspectInfo
 ---@return string
 function M.fix_inspect(data)
     if type(data) == "string" then
@@ -190,23 +190,24 @@ function M.get_label()
 end
 
 ---@param exits boolean
----@param data string | inspectInfo
+---@param data string | ccTweaked.turtle.inspectInfo
 ---@return Maybe<string>
 function M.process_inspect(exits, data)
     return M.get_maybe_using_bool(exits, M.fix_inspect(data))
 end
 
----@param ws Websocket
+---@param ws ccTweaked.http.Websocket
 function M.send_blocks(ws)
     local data = M.ConstructBlocksPacket(
         M.process_inspect(NativeTurtleApi.inspectUp()),
         M.process_inspect(NativeTurtleApi.inspectDown()),
         M.process_inspect(NativeTurtleApi.inspect())
     )
-    ws.send(textutils.serialiseJSON(data))
+    ws.send(textutils.serialiseJSON(data), false)
 end
 
----@type nil | Websocket
+---@type nil | ccTweaked.http.Websocket
+---@diagnostic disable-next-line: assign-type-mismatch
 NetworkedTurtleMoveWebsocket = NetworkedTurtleMoveWebsocket
 
 local networked_turtle_api = M.copy(turtle)
@@ -221,6 +222,7 @@ function networked_turtle_api.refuel(count)
     end
     return s, m
 end
+
 ---@diagnostic disable-next-line: duplicate-set-field
 function networked_turtle_api.place(text)
     local s, m = NativeTurtleApi.place(text)
@@ -281,7 +283,7 @@ function networked_turtle_api.digDown(side)
     return s, m
 end
 
----@param slot turtleSlot The inventory slot to select
+---@param slot ccTweaked.turtle.slot The inventory slot to select
 ---@return boolean success If the slot has been selected (1 - 16)
 ---@throws If `slot` is out of range
 ---@diagnostic disable-next-line: duplicate-set-field
@@ -378,10 +380,10 @@ function M.run_function_with_injected_globals(func, ...)
 end
 
 ---comment
----@param ws Websocket
+---@param ws ccTweaked.http.Websocket
 ---@param packet packet
 function M.send(ws, packet)
-    ws.send(textutils.serialiseJSON(packet))
+    ws.send(textutils.serialiseJSON(packet), false)
 end
 
 ---@param dir MoveDir

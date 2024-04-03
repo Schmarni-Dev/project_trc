@@ -243,6 +243,8 @@ local function handle_ws_messages(msg)
                 util.run_function_with_injected_globals(code)
             end)
         end
+    elseif msg == "GetExecutables" then
+
     end
 end
 local ws_url = "ws://schmerver.mooo.com:9002"

@@ -19,7 +19,6 @@ use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
-use trc_client::external_inv_support::ExternalInvSupportPlugin;
 use std::{
     f32::consts::FRAC_PI_4,
     fs,
@@ -27,6 +26,7 @@ use std::{
     path::PathBuf,
     sync::{mpsc, Arc},
 };
+use trc_client::external_inv_support::ExternalInvSupportPlugin;
 use trc_client::{
     bundels::ChunkBundle,
     components::ChunkInstance,
@@ -39,7 +39,6 @@ use trc_client::{
     BlockBlacklist, DoBlockRaymarch, MiscState, ShowFileDialog,
 };
 use trc_client::{input, InputState, WorldState};
-
 
 fn main() {
     pretty_env_logger::init();
@@ -80,7 +79,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "TRC".into(),
-                        fit_canvas_to_parent: true,
+                        // fit_canvas_to_parent: true,
                         // prevent_default_event_handling: true,
                         ..Default::default()
                     }),
@@ -130,7 +129,7 @@ fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowF
         {
             match fs::read_to_string(path_buf) {
                 Ok(text) => {
-                    dialog.file = path_buf.clone();
+                    dialog.file.clone_from(path_buf);
                     dialog.show = true;
                     dialog.conntents = text;
                 }
@@ -151,14 +150,14 @@ fn handle_world_selection_updates(
             ws_writer.send(C2SPackets::RequestTurtles(curr.to_owned()));
         }
     }
-    *old = worlds.curr_world.clone();
+    old.clone_from(&worlds.curr_world);
 }
 
 fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>) {
     for p in ws.read() {
         if let S2CPackets::Worlds(w) = p {
             worlds.curr_world = w.first().cloned();
-            worlds.worlds = w.to_owned();
+            w.clone_into(&mut worlds.worlds);
         }
     }
 }
@@ -214,7 +213,7 @@ fn fix_curr_turtle_updates(
     mut ats: EventWriter<ActiveTurtleChanged>,
 ) {
     if *i != active_turtle_res.0 {
-        ats.send(ActiveTurtleChanged(active_turtle_res.0))
+        ats.send(ActiveTurtleChanged(active_turtle_res.0));
     }
     *i = active_turtle_res.0
 }
@@ -341,7 +340,13 @@ fn ui(
                     .spacing(egui::Vec2::splat(2.0))
                     .show(ui, |ui| {
                         for (item, i) in inv {
-                            ui.add(ib(item, i as u32 + 1, tx.clone(), slot as u32, &mut item_amount_modifier));
+                            ui.add(ib(
+                                item,
+                                i as u32 + 1,
+                                tx.clone(),
+                                slot as u32,
+                                &mut item_amount_modifier,
+                            ));
                             if i % 4 == 3 {
                                 ui.end_row();
                             }
@@ -366,7 +371,7 @@ fn ui(
                     world: t.world.clone(),
                     code: "turtle.refuel()".to_string(),
                 }),
-            }
+            };
         }
         input_state.block_camera_updates |= window
             .zip(egui_input.0)
@@ -439,7 +444,7 @@ fn ib(
 }
 
 fn test(
-    input: Res<Input<KeyCode>>,
+    input: Res<ButtonInput<KeyCode>>,
     mut ws_writer: EventWriter<C2SPackets>,
     mut contexts: EguiContexts,
     active_turtle_res: Res<ActiveTurtleRes>,
@@ -462,76 +467,76 @@ fn test(
         TurtleUpDown::Down => "Down",
     };
     let valid_active_turtle = turtles.iter().any(|t| t.index == active_turtle_res.0);
-    if input.just_pressed(KeyCode::V) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyV) && valid_active_turtle {
         ws_writer.send(C2SPackets::SendLuaToTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             code: format!("turtle.drop{lua_func_suffix}()"),
-        })
+        });
     };
-    if input.just_pressed(KeyCode::C) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyC) && valid_active_turtle {
         ws_writer.send(C2SPackets::SendLuaToTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             code: format!("turtle.suck{lua_func_suffix}()"),
-        })
+        });
     };
-    if input.just_pressed(KeyCode::F) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyF) && valid_active_turtle {
         ws_writer.send(C2SPackets::BreakBlock {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             dir: up_down_modifier.clone(),
-        })
+        });
     };
-    if input.just_pressed(KeyCode::R) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyR) && valid_active_turtle {
         ws_writer.send(C2SPackets::PlaceBlock {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             dir: up_down_modifier.clone(),
             text: None,
-        })
+        });
     };
-    if input.just_pressed(KeyCode::W) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyW) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Forward,
-        })
+        });
     };
-    if input.just_pressed(KeyCode::S) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyS) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Back,
-        })
+        });
     };
-    if input.just_pressed(KeyCode::A) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyA) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Left,
-        })
+        });
     };
-    if input.just_pressed(KeyCode::D) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyD) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Right,
-        })
+        });
     };
-    if input.just_pressed(KeyCode::E) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyE) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Up,
-        })
+        });
     };
-    if input.just_pressed(KeyCode::Q) && valid_active_turtle {
+    if input.just_pressed(KeyCode::KeyQ) && valid_active_turtle {
         ws_writer.send(C2SPackets::MoveTurtle {
             world: world_state.curr_world.clone().unwrap_or_default(),
             index: active_turtle_res.0,
             direction: MoveDirection::Down,
-        })
+        });
     };
 }
 
@@ -603,7 +608,9 @@ fn setup(
         inactive_turtle: asset_server.load("turtle_inactive.gltf#Scene0"),
     });
     commands.insert_resource(ActiveTurtleRes(0));
-    commands.insert_resource(ChunkMat(materials.add(Color::rgb(1., 1., 1.).into())));
+    commands.insert_resource(ChunkMat(
+        materials.add(StandardMaterial::from(Color::rgb(1., 1., 1.))),
+    ));
     ws_writer.send(C2SPackets::RequestWorlds);
 }
 
@@ -615,13 +622,12 @@ fn set_world_on_event(
 ) {
     for e in event.read() {
         if let S2CPackets::SetWorld(world) = e {
-            query.for_each(|entity| {
+            query.iter().for_each(|entity| {
                 commands.entity(entity).despawn_recursive();
             });
-            world
-                .get_chunks()
-                .iter()
-                .for_each(|(_, chunk)| chunk_spawn.send(SpawnChunk(chunk.clone())))
+            world.get_chunks().iter().for_each(|(_, chunk)| {
+                chunk_spawn.send(SpawnChunk(chunk.clone()));
+            })
         }
     }
 }

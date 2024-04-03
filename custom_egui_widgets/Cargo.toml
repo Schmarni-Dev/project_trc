@@ -9,7 +9,7 @@ edition = "2021"
 egui.workspace = true
 
 [dev-dependencies]
-eframe = { version = "0.24.0", features = ["wayland"] }
+eframe = { version = "0.26.0", features = ["wayland"] }
 
 [[example]]
 name = "test"

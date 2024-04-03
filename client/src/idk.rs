@@ -45,7 +45,7 @@ impl ChunkData for ClientChunk {
     }
     fn has_neighbour(&self, pos: &Pos3, side: &voxel_meshing::data::Side) -> bool {
         let pos = get_chunk_relative_pos(pos);
-        let neighbour_pos = pos + &side.side_to_rel_pos();
+        let neighbour_pos = pos + side.side_to_rel_pos();
         let mut oob = neighbour_pos.x < 0 || neighbour_pos.y < 0 || neighbour_pos.z < 0;
         oob |= neighbour_pos.x > CHUNK_SIZE
             || neighbour_pos.y > CHUNK_SIZE

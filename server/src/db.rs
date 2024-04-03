@@ -7,14 +7,9 @@ use libsql_client::{Statement as S, Value};
 
 use serde::{Deserialize, Serialize};
 
-
-
-
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{
-    collections::HashMap,
-};
 
 #[derive(Serialize, Deserialize)]
 pub enum DBDataTypes {
@@ -75,10 +70,10 @@ const fn get_chunk_key_mask(i: usize) -> u32 {
 }
 
 fn pos_to_key(pos: &Pos3) -> u32 {
-    let x = pos.x.abs() as u32 & get_chunk_key_mask(0);
-    let y = pos.y.abs() as u32 & get_chunk_key_mask(1);
-    let z = pos.z.abs() as u32 & get_chunk_key_mask(2);
-    return x | y | z;
+    let x = pos.x.unsigned_abs() & get_chunk_key_mask(0);
+    let y = pos.y.unsigned_abs() & get_chunk_key_mask(1);
+    let z = pos.z.unsigned_abs() & get_chunk_key_mask(2);
+    x | y | z
 }
 
 #[derive(Debug)]

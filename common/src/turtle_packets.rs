@@ -37,6 +37,7 @@ pub enum T2SPackets {
         down: Maybe<String>,
         front: Maybe<String>,
     },
+    Executables(Vec<String>),
     Ping,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -52,4 +53,5 @@ pub enum S2TPackets {
     },
     RunLuaCode(String),
     GetSetupInfo,
+    GetExecutables,
 }

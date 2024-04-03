@@ -1,6 +1,6 @@
 use std::f32::consts::TAU;
 
-use egui::{Color32, FontId, Stroke, Ui, Vec2, FontFamily};
+use egui::{Color32, FontId, Stroke, Ui, Vec2};
 
 pub struct CircleDisplay {
     stroke_width: f32,
@@ -82,7 +82,8 @@ impl CircleDisplay {
                 visuals.text_color(),
             );
             let t_center = text.size() / 2.;
-            ui.painter().galley(center - t_center, text);
+            ui.painter()
+                .galley(center - t_center, text, visuals.text_color());
         }
 
         response

@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_raycast::{
     immediate::{Raycast, RaycastSettings},
-    primitives::Ray3d,
     CursorRay,
 };
 use common::world_data::{get_chunk_containing_block, get_chunk_relative_pos};

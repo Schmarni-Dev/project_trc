@@ -1,6 +1,6 @@
 {
     "workspace.library": [
-        "~/lua_lsp_plugins/lua-ls-cc-tweaked",
+        "~/lua_lsp_plugins/cc-tweaked-documentation",
         "${3rd}/luv/library"
     ]
 }

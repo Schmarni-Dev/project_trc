@@ -195,8 +195,8 @@ impl ServerTurtle {
                     .await?;
             }
             T2SPackets::Moved { direction } => {
-                let mut p = self.position.clone();
-                let mut o = self.orientation.clone();
+                let mut p = self.position;
+                let mut o = self.orientation;
                 match direction {
                     MoveDirection::Forward => {
                         let forward = self.inner.get_forward_vec();
@@ -248,6 +248,7 @@ impl ServerTurtle {
                 )))
                 .await?;
             }
+            T2SPackets::Executables(_) => todo!(),
         }
 
         Ok(())
@@ -269,40 +270,37 @@ impl ServerTurtle {
 
     async fn init(&mut self, mut recv: WsRecv) {
         let mut channel = self.comm_bus.clone();
-        let instance_id = self.instance_id.clone();
-        self.ws_read_task = Some(
-            tokio::spawn(async move {
-                loop {
-                    let packet = recv.next().await;
-                    match packet {
-                        Some(Ok(Message::Text(msg))) if &msg == "Ping" => {}
-                        Some(Ok(Message::Text(msg))) => {
-                            if let Ok(msg) = from_str::<T2SPackets>(&msg) {
-                                _ = channel
-                                    .send(TurtleCommBus::Packet((instance_id, msg)))
-                                    .await;
-                            }
+        let instance_id = self.instance_id;
+        self.ws_read_task = Some(tokio::spawn(async move {
+            loop {
+                let packet = recv.next().await;
+                match packet {
+                    Some(Ok(Message::Text(msg))) if &msg == "Ping" => {}
+                    Some(Ok(Message::Text(msg))) => {
+                        if let Ok(msg) = from_str::<T2SPackets>(&msg) {
+                            _ = channel
+                                .send(TurtleCommBus::Packet((instance_id, msg)))
+                                .await;
                         }
-                        None => {
-                            channel
-                                .send(TurtleCommBus::RemoveMe(instance_id))
-                                .await
-                                .unwrap();
-                            break;
-                        }
-                        Some(Err(e)) => {
-                            error!("Turtle ws error: {}", e);
-                            channel
-                                .send(TurtleCommBus::RemoveMe(instance_id))
-                                .await
-                                .unwrap();
-                            break;
-                        }
-                        Some(_) => {}
                     }
+                    None => {
+                        channel
+                            .send(TurtleCommBus::RemoveMe(instance_id))
+                            .await
+                            .unwrap();
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        error!("Turtle ws error: {}", e);
+                        channel
+                            .send(TurtleCommBus::RemoveMe(instance_id))
+                            .await
+                            .unwrap();
+                        break;
+                    }
+                    Some(_) => {}
                 }
-            })
-            .into(),
-        );
+            }
+        }));
     }
 }

@@ -238,7 +238,7 @@ pub async fn main(
                         .await;
                 }
                 TurtleCommBus::UpdateBlock(block) => {
-                    local_db.set_block(&block).await;
+                    let _ = local_db.set_block(&block).await;
                     local_server_clients
                         .lock()
                         .await
@@ -392,15 +392,15 @@ pub async fn main(
     anyhow::Ok(())
 }
 
-fn trim_newline(mut s: String) -> String {
-    if s.ends_with('\n') {
-        s.pop();
-        if s.ends_with('\r') {
-            s.pop();
-        }
-    };
-    s
-}
+// fn trim_newline(mut s: String) -> String {
+//     if s.ends_with('\n') {
+//         s.pop();
+//         if s.ends_with('\r') {
+//             s.pop();
+//         }
+//     };
+//     s
+// }
 
 // async fn save_db(db: Arc<Mutex<DB>>, turtles: Arc<Mutex<TurtleMap>>) {
 //     let mut db = db.lock().await;
