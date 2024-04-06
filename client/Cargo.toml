@@ -33,3 +33,4 @@ wasm-bindgen-futures.workspace = true
 tungstenite.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
+bevy_dylib = "0.13.1"

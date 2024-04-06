@@ -5,12 +5,12 @@ use crate::data_types::client_map;
 use crate::data_types::server_client::{ClientComms, ServerClient};
 use crate::data_types::server_turtle::{ServerTurtle, WsRecv, WsSend};
 use crate::data_types::turtle_map::TurtleMap;
-use crate::db::{DBError, DB};
+use crate::db::{pos_to_db_pos, pos_to_key, DB};
 
 use common::client_packets::{C2SPackets, MovedTurtleData, S2CPackets, SetTurtlesData};
-use common::turtle::Turtle;
+use common::turtle::{Maybe, Turtle};
 use common::turtle_packets::{S2TPackets, SetupInfoData, T2SPackets};
-use common::world_data::Block;
+use common::world_data::{get_chunk_containing_block, Block, World};
 
 use futures_channel::mpsc::unbounded;
 
@@ -93,29 +93,36 @@ pub async fn main(
                         }
                     }
                     C2SPackets::RequestTurtles(world) => {
-                        let mut online_turtles = local_server_turtles
+                        let indexes = local_server_turtles
                             .lock()
                             .await
                             .get_common_turtles()
                             .into_iter()
-                            .map(|mut t| {
-                                t.is_online = true;
-                                t
-                            })
                             .filter(|t| t.world == world)
+                            .map(|t| t.index)
                             .collect::<Vec<_>>();
-                        let indexes = online_turtles.iter().map(|t| t.index).collect::<Vec<_>>();
-                        let mut turtles = match local_db.get_turtles(&world).await {
+                        use crate::db::DbTurtle;
+                        let w = sqlx::query_as!(
+                            DbTurtle,
+                            "SELECT * FROM turtles WHERE world = ?",
+                            world
+                        )
+                        .fetch_all(&*local_db)
+                        .await;
+                        let turtles = match w {
                             Ok(t) => t
                                 .into_iter()
-                                .filter(|t| !indexes.contains(&t.index))
-                                .collect(),
+                                .map(Turtle::from)
+                                .map(|mut t| {
+                                    t.is_online = indexes.contains(&t.index);
+                                    t
+                                })
+                                .collect::<Vec<_>>(),
                             Err(err) => {
                                 error!("{err}");
                                 Vec::new()
                             }
                         };
-                        turtles.append(&mut online_turtles);
                         local_server_clients
                             .lock()
                             .await
@@ -123,17 +130,30 @@ pub async fn main(
                             .await;
                     }
                     C2SPackets::RequestWorld(name) => {
+                        use crate::db::DbBlock;
+                        let mut world = World::new(&name);
+                        let block_iter =
+                            sqlx::query_as!(DbBlock, "SELECT * FROM blocks WHERE world = ?", name)
+                                .fetch_all(&*local_db)
+                                .await
+                                .unwrap()
+                                .into_iter()
+                                .map(Block::from);
+                        for block in block_iter {
+                            world.set_block(block);
+                        }
                         local_server_clients
                             .lock()
                             .await
-                            .send_to(
-                                S2CPackets::SetWorld(local_db.get_world(&name).await.unwrap()),
-                                &client_index,
-                            )
+                            .send_to(S2CPackets::SetWorld(world), &client_index)
                             .await;
                     }
                     C2SPackets::RequestWorlds => {
-                        let worlds = match local_db.clone().get_worlds().await {
+                        let worlds = match sqlx::query!("SELECT name FROM worlds;")
+                            .fetch_all(&*local_db)
+                            .await
+                            .map(|r| r.into_iter().map(|r| r.name).collect::<Vec<_>>())
+                        {
                             Ok(o) => o,
                             Err(e) => {
                                 error!("{e}");
@@ -180,27 +200,36 @@ pub async fn main(
                     let mut server_turtles = local_server_turtles.lock().await;
                     let world = server_turtles.drop_turtle(&index).map(|t| t.world.clone());
                     if let Some(world) = world {
-                        let mut online_turtles = server_turtles
+                        let indexes = local_server_turtles
+                            .lock()
+                            .await
                             .get_common_turtles()
                             .into_iter()
-                            .map(|mut t| {
-                                t.is_online = true;
-                                t
-                            })
                             .filter(|t| t.world == world)
+                            .map(|t| t.index)
                             .collect::<Vec<_>>();
-                        let indexes = online_turtles.iter().map(|t| t.index).collect::<Vec<_>>();
-                        let mut turtles = match local_db.get_turtles(&world).await {
+                        use crate::db::DbTurtle;
+                        let w = sqlx::query_as!(
+                            DbTurtle,
+                            "SELECT * FROM turtles WHERE world = ?",
+                            world
+                        )
+                        .fetch_all(&*local_db)
+                        .await;
+                        let turtles = match w {
                             Ok(t) => t
                                 .into_iter()
-                                .filter(|t| !indexes.contains(&t.index))
-                                .collect(),
+                                .map(Turtle::from)
+                                .map(|mut t| {
+                                    t.is_online = indexes.contains(&t.index);
+                                    t
+                                })
+                                .collect::<Vec<_>>(),
                             Err(err) => {
                                 error!("{err}");
                                 Vec::new()
                             }
                         };
-                        turtles.append(&mut online_turtles);
                         local_server_clients
                             .lock()
                             .await
@@ -238,7 +267,19 @@ pub async fn main(
                         .await;
                 }
                 TurtleCommBus::UpdateBlock(block) => {
-                    let _ = local_db.set_block(&block).await;
+                    // let _ = local_db.set_block(&block).await;
+                    let chunk_key = pos_to_key(&get_chunk_containing_block(&block.pos));
+                    let db_pos = pos_to_db_pos(&block.pos);
+                    let _ = sqlx::query!(
+                        "INSERT OR REPLACE INTO blocks VALUES (?,?,?,?,?);",
+                        chunk_key,
+                        block.id,
+                        block.world,
+                        db_pos,
+                        block.is_air,
+                    )
+                    .execute(&*local_db)
+                    .await;
                     local_server_clients
                         .lock()
                         .await
@@ -249,17 +290,19 @@ pub async fn main(
                     let sts = local_server_turtles.lock().await;
                     let t = sts.get_turtle(index);
                     if let Some(t) = t {
-                        local_server_clients
-                            .lock()
-                            .await
-                            .broadcast(S2CPackets::TurtleInventoryUpdate(
-                                common::client_packets::UpdateTurtleData {
-                                    index: t.index,
-                                    world: t.world.clone(),
-                                    data: t.inventory.clone(),
-                                },
-                            ))
-                            .await;
+                        if let Maybe::Some(inv) = t.inventory.clone() {
+                            local_server_clients
+                                .lock()
+                                .await
+                                .broadcast(S2CPackets::TurtleInventoryUpdate(
+                                    common::client_packets::UpdateTurtleData {
+                                        index: t.index,
+                                        world: t.world.clone(),
+                                        data: inv,
+                                    },
+                                ))
+                                .await;
+                        }
                     }
                 }
                 TurtleCommBus::FuelUpdate(index) => {
@@ -306,14 +349,38 @@ pub async fn main(
             let db = local_db.clone();
             let mut server_turtles = local_server_turtles.lock().await;
             info!("new turtle with index: {}", info.index);
-
-            let t = match db.get_turtle(info.index, &info.world).await {
+            use crate::db::DbTurtle;
+            let db_turtle = sqlx::query_as!(
+                DbTurtle,
+                "SELECT * FROM turtles WHERE id = ? AND world = ?;",
+                info.index,
+                info.world
+            )
+            .fetch_one(&*local_db)
+            .await;
+            let t = match db_turtle.map(Turtle::from) {
                 Ok(turtle) => turtle,
-                Err(DBError::NotFound) => db
-                    .get_dummy_turtle(info.index, info.world, info.position, info.facing)
-                    .await
-                    .unwrap(),
-                Err(DBError::Error(err)) => {
+                Err(sqlx::Error::RowNotFound) => {
+                    let dummy =
+                        Turtle::new_dummy(info.index, info.world, info.position, info.facing);
+                    let db_pos = pos_to_db_pos(&dummy.position);
+                    let orient_str = dummy.orientation.to_string();
+                    // TODO: Check if this fails and do something
+                    let _ =sqlx::query!(
+                        "INSERT INTO turtles VALUES (?,?,?,?,?,?,?)",
+                        dummy.index,
+                        dummy.name,
+                        db_pos,
+                        orient_str,
+                        dummy.fuel,
+                        dummy.max_fuel,
+                        dummy.world
+                    )
+                    .execute(&*local_db)
+                    .await;
+                    dummy
+                }
+                Err(err) => {
                     error!("{}", err);
                     send.close().await.unwrap();
                     continue;
@@ -326,27 +393,31 @@ pub async fn main(
             let t: Turtle = st.to_owned();
             server_turtles.push(st);
             let world = t.world;
-            let mut online_turtles = server_turtles
+            let indexes = local_server_turtles
+                .lock()
+                .await
                 .get_common_turtles()
                 .into_iter()
-                .map(|mut t| {
-                    t.is_online = true;
-                    t
-                })
                 .filter(|t| t.world == world)
+                .map(|t| t.index)
                 .collect::<Vec<_>>();
-            let indexes = online_turtles.iter().map(|t| t.index).collect::<Vec<_>>();
-            let mut turtles = match local_db.get_turtles(&world).await {
+            let w = sqlx::query_as!(DbTurtle, "SELECT * FROM turtles WHERE world = ?", world)
+                .fetch_all(&*local_db)
+                .await;
+            let turtles = match w {
                 Ok(t) => t
                     .into_iter()
-                    .filter(|t| !indexes.contains(&t.index))
-                    .collect(),
+                    .map(Turtle::from)
+                    .map(|mut t| {
+                        t.is_online = indexes.contains(&t.index);
+                        t
+                    })
+                    .collect::<Vec<_>>(),
                 Err(err) => {
                     error!("{err}");
                     Vec::new()
                 }
             };
-            turtles.append(&mut online_turtles);
             local_server_clients
                 .lock()
                 .await

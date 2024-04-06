@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 # TODO: Repalce with sqlx slqite
-libsql-client = "0.31.11"
+# libsql-client = "0.31.11"
+sqlx.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 tungstenite.workspace = true
@@ -23,3 +24,4 @@ chrono.workspace = true
 rand.workspace = true
 futures.workspace = true
 axum.workspace = true
+tower-http.workspace = true

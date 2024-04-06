@@ -3,7 +3,7 @@ use common::client_packets::{C2SPackets, S2CPackets};
 use futures::StreamExt;
 use futures_channel::mpsc::UnboundedSender;
 use futures_util::SinkExt;
-use log::{error, info};
+use log::error;
 use rand::prelude::*;
 
 use tokio::task::JoinHandle;
@@ -24,7 +24,7 @@ pub struct ServerClient {
     msg_send: UnboundedSender<(i32, ClientComms)>,
     ws_read_handle: Option<JoinHandle<()>>,
     index: i32,
-    chunk_render_distance: u8,
+    chunk_render_distance: u32,
 }
 
 impl ServerClient {
@@ -56,9 +56,7 @@ impl ServerClient {
                     }
                     Ok(Message::Text(msg)) => {
                         if let Ok(msg) = serde_json::from_str::<C2SPackets>(&msg) {
-                            match msg {
-                                packet => _ = send.send((index, ClientComms::Packet(packet))).await,
-                            }
+                            _ = send.send((index, ClientComms::Packet(msg))).await
                         }
                     }
                     _ => {}
@@ -68,11 +66,7 @@ impl ServerClient {
     }
     pub async fn send_msg(&mut self, msg: &S2CPackets) {
         let text = serde_json::to_string(msg).unwrap();
-        if let Err(err) = self
-            .ws_send
-            .send(Message::Text(text))
-            .await
-        {
+        if let Err(err) = self.ws_send.send(Message::Text(text)).await {
             error!("Error When sending Shit to Client: {}", err);
             _ = self.msg_send.send((self.get_index(), ClientComms::KILL_ME));
         }
@@ -81,8 +75,8 @@ impl ServerClient {
         self.index
     }
     pub async fn delete(mut self) {
-        _=self.msg_send.close().await;
-        _=self.ws_send.close().await;
+        _ = self.msg_send.close().await;
+        _ = self.ws_send.close().await;
         if let Some(h) = self.ws_read_handle {
             h.abort();
         }

@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use bevy::{
     prelude::{Deref, DerefMut},
@@ -8,10 +8,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Reflect)]
+#[derive(Serialize, Deserialize, Debug, Clone, Reflect, Default)]
 pub enum Maybe<T> {
     Some(T),
+    #[default]
     None,
+}
+
+impl<T> Maybe<T> {
+    pub fn unwrap(self) -> T {
+        Option::from(self).unwrap()
+    }
 }
 
 impl<T> From<Maybe<T>> for Option<T> {
@@ -19,6 +26,14 @@ impl<T> From<Maybe<T>> for Option<T> {
         match val {
             Maybe::None => None,
             Maybe::Some(data) => Some(data),
+        }
+    }
+}
+impl<T> From<Option<T>> for Maybe<T> {
+    fn from(val: Option<T>) -> Self {
+        match val {
+            None => Maybe::None,
+            Some(data) => Maybe::Some(data),
         }
     }
 }
@@ -98,7 +113,7 @@ pub type TurtleIndexType = i32;
 pub struct Turtle {
     pub index: TurtleIndexType,
     pub name: String,
-    pub inventory: TurtleInventory,
+    pub inventory: Maybe<TurtleInventory>,
     pub position: Pos3,
     pub orientation: Orientation,
     pub fuel: i32,
@@ -166,7 +181,7 @@ impl Turtle {
         Turtle::new(
             index,
             String::default(),
-            TurtleInventory::default(),
+            None,
             pos,
             orientation,
             0,
@@ -175,10 +190,11 @@ impl Turtle {
             world,
         )
     }
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         index: TurtleIndexType,
         name: String,
-        inventory: TurtleInventory,
+        inventory: Option<TurtleInventory>,
         position: Pos3,
         orientation: Orientation,
         fuel: i32,
@@ -189,7 +205,7 @@ impl Turtle {
         Turtle {
             index,
             name,
-            inventory,
+            inventory: inventory.into(),
             position,
             orientation,
             fuel,
@@ -229,15 +245,15 @@ pub enum Orientation {
     West,
 }
 
-impl ToString for Orientation {
-    fn to_string(&self) -> String {
+impl Display for Orientation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Orientation as S;
-        match self {
-            S::North => "North".into(),
-            S::South => "South".into(),
-            S::West => "West".into(),
-            S::East => "East".into(),
-        }
+        f.write_str(match self {
+            S::North => "North",
+            S::South => "South",
+            S::West => "West",
+            S::East => "East",
+        })
     }
 }
 

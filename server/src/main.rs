@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use anyhow::Result;
 use axum::{
@@ -26,13 +26,25 @@ type WsSend = SplitSink<WebSocketStream<TcpStream>, Message>;
 type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
 
 async fn get_worlds(State(db): State<Arc<DB>>) -> Json<Vec<String>> {
-    let w = db.get_worlds().await.unwrap();
+    let w = sqlx::query!("SELECT name FROM worlds;")
+        .fetch_all(&*db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|r| r.name)
+        .collect::<Vec<_>>();
+
+    // let w = db.get_worlds().await.unwrap();
     info!("{w:#?}");
     Json(w)
 }
 
 async fn add_world(State(db): State<Arc<DB>>, name: String) {
-    db.create_world(&name).await.unwrap();
+    sqlx::query!("INSERT OR IGNORE INTO worlds VALUES (?);", name)
+        .execute(&*db)
+        .await
+        .unwrap();
+    // db.create_world(&name).await.unwrap();
 }
 
 // amount of times i dead locked myself in TOKIOOOOO: 1
@@ -43,7 +55,8 @@ async fn main() -> Result<()> {
         .filter(None, log::LevelFilter::Warn)
         .filter(Some("backend"), log::LevelFilter::Debug)
         .init();
-    let db = Arc::new(DB::new().await?);
+    // let db = Arc::new(SqliteConnection::.await?);
+    let db = Arc::new(DB::connect(&env::var("DATABASE_URL")?).await?);
     let app = Router::new()
         .route("/get_worlds", get(get_worlds))
         .route("/add_world", post(add_world))

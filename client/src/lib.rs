@@ -2,6 +2,7 @@ pub mod components;
 pub mod events;
 pub mod idk;
 pub mod input;
+pub mod executable_files;
 use std::{sync::Arc, path::PathBuf};
 
 pub use actually_usable_voxel_mesh_gen as voxel_meshing;

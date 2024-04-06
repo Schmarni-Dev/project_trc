@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use super::server_client::ServerClient;
 use common::client_packets::S2CPackets;
-use log::info;
-
 
 pub struct DosentExist;
 
@@ -19,7 +17,7 @@ impl ClientMap {
         self
     }
     pub async fn broadcast(&mut self, msg: S2CPackets) {
-        for (_, c) in &mut self.0 {
+        for c in self.0.values_mut() {
             c.send_msg(&msg).await;
         }
     }
@@ -31,5 +29,11 @@ impl ClientMap {
         if let Some(client) = self.0.remove(id) {
             client.delete().await
         }
+    }
+}
+
+impl Default for ClientMap {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -46,3 +46,15 @@ rand = "0.8.5"
 axum = "0.7.4"
 rayon = "1.8.1"
 bevy_mod_raycast = "0.17"
+sqlx = { version = "0.7.4", features = [
+	"runtime-tokio",
+	"tls-rustls",
+	"sqlite",
+] }
+tower-http = "0.5.2"
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3
+
+[profile.dev.package.bevy]
+opt-level = 3

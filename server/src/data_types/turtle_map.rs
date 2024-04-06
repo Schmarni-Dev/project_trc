@@ -19,7 +19,7 @@ impl TurtleMap {
         self
     }
     pub fn get_common_turtles(&self) -> Vec<Turtle> {
-        self.0.values().map(|st| Turtle::clone(&st)).collect()
+        self.0.values().map(|st| Turtle::clone(st)).collect()
     }
     pub fn get_turtle(&self, id: i32) -> Option<&ServerTurtle> {
         self.0.get(&id)
@@ -41,7 +41,12 @@ impl TurtleMap {
             })
     }
     pub fn drop_turtle(&mut self, id: &i32) -> Option<ServerTurtle> {
-        let t = self.0.remove(id);
-        t
+        self.0.remove(id)
+    }
+}
+
+impl Default for TurtleMap {
+    fn default() -> Self {
+        Self::new()
     }
 }

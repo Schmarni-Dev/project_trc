@@ -15,7 +15,6 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use libsql_client::args;
 use log::error;
 #[allow(unused_imports)]
 use log::info;
@@ -101,96 +100,109 @@ impl ServerTurtle {
             }
             T2SPackets::SetPos(pos) => {
                 self.position = pos;
-                self.db
-                    .exec(
-                        "
+                let db_pos = pos_to_db_pos(&self.position);
+                sqlx::query!(
+                    "
                     UPDATE turtles SET position = ? 
                     WHERE id = ? AND world = ?;
                     ",
-                        args!(*pos_to_db_pos(&self.position), self.index, &self.world),
-                    )
-                    .await?;
+                    db_pos,
+                    self.index,
+                    self.world,
+                )
+                .fetch_one(&*self.db)
+                .await?;
             }
             T2SPackets::SetMaxFuel(max_fuel) => {
                 self.max_fuel = max_fuel;
-                self.db
-                    .exec(
-                        "
+                sqlx::query!(
+                    "
                     UPDATE turtles SET max_fuel = ? 
                     WHERE id = ? AND world = ?;
                     ",
-                        args!(max_fuel, self.index, &self.world),
-                    )
-                    .await?;
+                    max_fuel,
+                    self.index,
+                    self.world,
+                )
+                .fetch_one(&*self.db)
+                .await?;
             }
 
             T2SPackets::SetOrientation(orient) => {
                 self.orientation = orient;
-                self.db
-                    .exec(
-                        "
+                let orient_str = orient.to_string();
+                sqlx::query!(
+                    "
                     UPDATE turtles SET orientation = ? 
                     WHERE id = ? AND world = ?;
                     ",
-                        args!(orient.to_string(), self.index, &self.world),
-                    )
-                    .await?;
+                    orient_str,
+                    self.index,
+                    self.world,
+                )
+                .fetch_one(&*self.db)
+                .await?;
             }
             T2SPackets::SetupInfo(SetupInfoData { .. }) => {}
             T2SPackets::InventoryUpdate(inv) => {
-                self.inventory = inv;
-                self.db
-                    .exec(
-                        "
-                    UPDATE turtles SET inventory = ? 
-                    WHERE id = ? AND world = ?;
-                    ",
-                        args!(
-                            serde_json::to_string(&self.inventory)?,
-                            self.index,
-                            &self.world
-                        ),
-                    )
-                    .await?;
+                self.inventory = Some(inv).into();
+                // let inv_str = serde_json::to_string(&self.inventory)?;
+                // sqlx::query!(
+                //     "
+                //     UPDATE turtles SET inventory = ? 
+                //     WHERE id = ? AND world = ?;
+                //     ",
+                //     inv_str,
+                //     self.index,
+                //     self.world
+                // )
+                // .fetch_one(&*self.db)
+                // .await?;
                 self.comm(TurtleCommBus::InvUpdate(self.instance_id))
                     .await?;
             }
             T2SPackets::WorldUpdate(w_name) => {
-                self.db
-                    .exec(
-                        "
+                sqlx::query!(
+                    "
                     UPDATE turtles SET world = ? 
                     WHERE id = ? AND world = ?;
                     ",
-                        args!(&w_name, self.index, &self.world),
-                    )
-                    .await?;
+                    w_name,
+                    self.index,
+                    self.world,
+                )
+                .fetch_one(&*self.db)
+                .await?;
                 self.world = w_name;
             }
             T2SPackets::NameUpdate(name) => {
                 self.name = name;
-                self.db
-                    .exec(
-                        "
-                    UPDATE turtles SET name = ? 
+                sqlx::query!(
+                    "
+                    UPDATE turtles SET name = ?
                     WHERE id = ? AND world = ?;
                     ",
-                        args!(&self.name, self.index, &self.world),
-                    )
-                    .await?;
+                    self.name,
+                    self.index,
+                    self.world,
+                )
+                .fetch_one(&*self.db)
+                .await?;
             }
             T2SPackets::FuelUpdate(fuel) => {
                 info!("turtle foul {fuel}");
                 self.fuel = fuel;
-                self.db
-                    .exec(
-                        "
+                sqlx::query!(
+                    "
                     UPDATE turtles SET fuel = ? 
                     WHERE id = ? AND world = ?;
                     ",
-                        args!(self.fuel, self.index, &self.world),
-                    )
-                    .await?;
+                    self.fuel,
+                    self.index,
+                    self.world,
+                )
+                .fetch_one(&*self.db)
+                .await?;
                 self.comm(TurtleCommBus::FuelUpdate(self.instance_id))
                     .await?;
             }
