@@ -1,42 +1,25 @@
 use bevy::prelude::{Deref, DerefMut};
 
 use crate::{
-    turtle::{self, TurtleInventory, Turtle},
-    turtle_packets::TurtleUpDown,
+    turtle::{self, Turtle, TurtleInventory},
     world_data::{Block, World},
     Pos3,
 };
 
+// Needed: start executable on turtle
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum C2SPackets {
-    MoveTurtle {
-        index: i32,
-        world: String,
-        direction: turtle::MoveDirection,
-    },
-    TurtleSelectSlot {
-        index: i32,
-        world: String,
-        slot: u32,
-    },
     RequestTurtles(String),
     RequestWorlds,
     RequestWorld(String),
-    PlaceBlock {
-        index: i32,
-        world: String,
-        dir: TurtleUpDown,
-        text: Option<String>,
-    },
-    BreakBlock {
-        index: i32,
-        world: String,
-        dir: TurtleUpDown,
-    },
     SendLuaToTurtle {
         index: i32,
         world: String,
         code: String,
+    },
+    StdInForTurtle {
+        index: i32,
+        value: String,
     },
 }
 
@@ -62,13 +45,16 @@ pub struct SetTurtlesData {
     pub world: String,
 }
 
+// Needed: turtle requesting input from client(might need to somehow sync that? or just first come
+// first serve)
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
 pub enum S2CPackets {
     MovedTurtle(MovedTurtleData),
-    TurtleInventoryUpdate(UpdateTurtleData<TurtleInventory>),
+    TurtleInventoryUpdate(UpdateTurtleData<Box<TurtleInventory>>),
     TurtleFuelUpdate(UpdateTurtleData<i32>),
     SetTurtles(SetTurtlesData),
     Worlds(Vec<String>),
     WorldUpdate(Block),
     SetWorld(World),
+    StdOutFromTurtle { index: i32, value: String },
 }

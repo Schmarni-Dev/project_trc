@@ -261,6 +261,7 @@ impl ServerTurtle {
                 .await?;
             }
             T2SPackets::Executables(_) => todo!(),
+            T2SPackets::StdOut(_) => todo!(),
         }
 
         Ok(())
@@ -277,7 +278,7 @@ impl ServerTurtle {
     }
 
     pub async fn move_(&mut self, dir: MoveDirection) {
-        self.send_ws(S2TPackets::Move(vec![dir])).await;
+        // self.send_ws(S2TPackets::Move(vec![dir])).await;
     }
 
     async fn init(&mut self, mut recv: WsRecv) {

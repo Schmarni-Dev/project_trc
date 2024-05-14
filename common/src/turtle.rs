@@ -113,7 +113,7 @@ pub type TurtleIndexType = i32;
 pub struct Turtle {
     pub index: TurtleIndexType,
     pub name: String,
-    pub inventory: Maybe<TurtleInventory>,
+    pub inventory: Maybe<Box<TurtleInventory>>,
     pub position: Pos3,
     pub orientation: Orientation,
     pub fuel: i32,
@@ -205,7 +205,7 @@ impl Turtle {
         Turtle {
             index,
             name,
-            inventory: inventory.into(),
+            inventory: inventory.map(Box::new).into(),
             position,
             orientation,
             fuel,
@@ -223,7 +223,7 @@ impl Turtle {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum MoveDirection {
     Forward,
     Back,
@@ -232,7 +232,7 @@ pub enum MoveDirection {
     Left,
     Right,
 }
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
 pub enum Orientation {
     #[default]
     /// Towards -Z

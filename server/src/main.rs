@@ -7,7 +7,10 @@ use axum::{
     Json, Router,
 };
 use backend::{db::DB, *};
-use common::turtle_packets::{SetupInfoData, T2SPackets};
+use common::{
+    extensions::Extensions,
+    turtle_packets::{SetupInfoData, T2SPackets},
+};
 
 use futures_util::{
     pin_mut,
@@ -21,6 +24,8 @@ use tokio::{
 };
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::Message;
+
+pub const SUPPORTED_EXTENSIONS: &[Extensions] = &[Extensions::PositionTracking];
 
 type WsSend = SplitSink<WebSocketStream<TcpStream>, Message>;
 type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
@@ -47,6 +52,15 @@ async fn add_world(State(db): State<Arc<DB>>, name: String) {
     // db.create_world(&name).await.unwrap();
 }
 
+async fn get_supported_extensions() -> Json<Vec<&'static str>> {
+    Json(
+        SUPPORTED_EXTENSIONS
+            .iter()
+            .map(|e| e.string_ident())
+            .collect(),
+    )
+}
+
 // amount of times i dead locked myself in TOKIOOOOO: 1
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -59,7 +73,9 @@ async fn main() -> Result<()> {
     let db = Arc::new(DB::connect(&env::var("DATABASE_URL")?).await?);
     let app = Router::new()
         .route("/get_worlds", get(get_worlds))
+        .route("/get_supported_extensions", get(get_supported_extensions))
         .route("/add_world", post(add_world))
+        .nest_service("/lua", tower_http::services::ServeDir::new("./lua"))
         .with_state(db.clone());
     let axum_listener = tokio::net::TcpListener::bind("0.0.0.0:9003").await?;
     tokio::spawn(async {

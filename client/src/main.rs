@@ -10,7 +10,7 @@ use bevy_mod_raycast::DefaultRaycastingPlugin;
 use common::{
     client_packets::{C2SPackets, S2CPackets, SetTurtlesData},
     turtle::{Item, Maybe, MoveDirection},
-    turtle_packets::TurtleUpDown,
+    // turtle_packets::TurtleUpDown,
     world_data::{get_chunk_containing_block, Chunk},
 };
 use custom_egui_widgets::item_box::{item_box, ItemSlotActions, TX};
@@ -51,6 +51,7 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "TRC".into(),
+
                     // fit_canvas_to_parent: true,
                     // prevent_default_event_handling: true,
                     ..Default::default()
@@ -356,23 +357,26 @@ fn ui(
 
             while let Ok((slot, action)) = rx.try_recv() {
                 match action {
-                    ItemSlotActions::SelectSlot => ws_writer.send(C2SPackets::TurtleSelectSlot {
-                        index: t.index,
-                        world: t.world.clone(),
-                        slot,
-                    }),
+                    // ItemSlotActions::SelectSlot => ws_writer.send(C2SPackets::TurtleSelectSlot {
+                    //     index: t.index,
+                    //     world: t.world.clone(),
+                    //     slot,
+                    // }),
                     ItemSlotActions::Transfer(amount) => {
                         ws_writer.send(C2SPackets::SendLuaToTurtle {
                             index: t.index,
                             world: t.world.clone(),
                             code: format!("turtle.transferTo({slot}, {amount})"),
-                        })
+                        });
                     }
-                    ItemSlotActions::Refuel => ws_writer.send(C2SPackets::SendLuaToTurtle {
-                        index: t.index,
-                        world: t.world.clone(),
-                        code: "turtle.refuel()".to_string(),
-                    }),
+                    ItemSlotActions::Refuel => {
+                        ws_writer.send(C2SPackets::SendLuaToTurtle {
+                            index: t.index,
+                            world: t.world.clone(),
+                            code: "turtle.refuel()".to_string(),
+                        });
+                    }
+                    _ => (),
                 };
             }
             input_state.block_camera_updates |= window
@@ -424,90 +428,90 @@ fn test(
     if contexts.ctx_mut().wants_keyboard_input() {
         return;
     }
-    let up_down_modifier = if input.pressed(KeyCode::ControlLeft) {
-        TurtleUpDown::Down
-    } else if input.pressed(KeyCode::ShiftLeft) {
-        TurtleUpDown::Up
-    } else {
-        TurtleUpDown::Forward
-    };
-    let lua_func_suffix = match up_down_modifier.clone() {
-        TurtleUpDown::Up => "Up",
-        TurtleUpDown::Forward => "",
-        TurtleUpDown::Down => "Down",
-    };
+    // let up_down_modifier = if input.pressed(KeyCode::ControlLeft) {
+    //     TurtleUpDown::Down
+    // } else if input.pressed(KeyCode::ShiftLeft) {
+    //     TurtleUpDown::Up
+    // } else {
+    //     TurtleUpDown::Forward
+    // };
+    // let lua_func_suffix = match up_down_modifier.clone() {
+    //     TurtleUpDown::Up => "Up",
+    //     TurtleUpDown::Forward => "",
+    //     TurtleUpDown::Down => "Down",
+    // };
     let valid_active_turtle = turtles.iter().any(|t| t.index == active_turtle_res.0);
-    if input.just_pressed(KeyCode::KeyV) && valid_active_turtle {
-        ws_writer.send(C2SPackets::SendLuaToTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            code: format!("turtle.drop{lua_func_suffix}()"),
-        });
-    };
-    if input.just_pressed(KeyCode::KeyC) && valid_active_turtle {
-        ws_writer.send(C2SPackets::SendLuaToTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            code: format!("turtle.suck{lua_func_suffix}()"),
-        });
-    };
-    if input.just_pressed(KeyCode::KeyF) && valid_active_turtle {
-        ws_writer.send(C2SPackets::BreakBlock {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            dir: up_down_modifier.clone(),
-        });
-    };
-    if input.just_pressed(KeyCode::KeyR) && valid_active_turtle {
-        ws_writer.send(C2SPackets::PlaceBlock {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            dir: up_down_modifier.clone(),
-            text: None,
-        });
-    };
-    if input.just_pressed(KeyCode::KeyW) && valid_active_turtle {
-        ws_writer.send(C2SPackets::MoveTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            direction: MoveDirection::Forward,
-        });
-    };
-    if input.just_pressed(KeyCode::KeyS) && valid_active_turtle {
-        ws_writer.send(C2SPackets::MoveTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            direction: MoveDirection::Back,
-        });
-    };
-    if input.just_pressed(KeyCode::KeyA) && valid_active_turtle {
-        ws_writer.send(C2SPackets::MoveTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            direction: MoveDirection::Left,
-        });
-    };
-    if input.just_pressed(KeyCode::KeyD) && valid_active_turtle {
-        ws_writer.send(C2SPackets::MoveTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            direction: MoveDirection::Right,
-        });
-    };
-    if input.just_pressed(KeyCode::KeyE) && valid_active_turtle {
-        ws_writer.send(C2SPackets::MoveTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            direction: MoveDirection::Up,
-        });
-    };
-    if input.just_pressed(KeyCode::KeyQ) && valid_active_turtle {
-        ws_writer.send(C2SPackets::MoveTurtle {
-            world: world_state.curr_world.clone().unwrap_or_default(),
-            index: active_turtle_res.0,
-            direction: MoveDirection::Down,
-        });
-    };
+    // if input.just_pressed(KeyCode::KeyV) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::SendLuaToTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         code: format!("turtle.drop{lua_func_suffix}()"),
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyC) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::SendLuaToTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         code: format!("turtle.suck{lua_func_suffix}()"),
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyF) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::BreakBlock {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         dir: up_down_modifier.clone(),
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyR) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::PlaceBlock {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         dir: up_down_modifier.clone(),
+    //         text: None,
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyW) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::MoveTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         direction: MoveDirection::Forward,
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyS) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::MoveTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         direction: MoveDirection::Back,
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyA) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::MoveTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         direction: MoveDirection::Left,
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyD) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::MoveTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         direction: MoveDirection::Right,
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyE) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::MoveTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         direction: MoveDirection::Up,
+    //     });
+    // };
+    // if input.just_pressed(KeyCode::KeyQ) && valid_active_turtle {
+    //     ws_writer.send(C2SPackets::MoveTurtle {
+    //         world: world_state.curr_world.clone().unwrap_or_default(),
+    //         index: active_turtle_res.0,
+    //         direction: MoveDirection::Down,
+    //     });
+    // };
 }
 
 fn setup_turtles(

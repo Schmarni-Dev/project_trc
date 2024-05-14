@@ -3,18 +3,6 @@ if log == nil then
     log = print
 end
 
----@generic T
----@alias Maybe
----| "None"
----| {Some: T }
-
----@alias MoveDir
---- |"Forward"
---- |"Back"
---- |"Up"
---- |"Down"
---- |"Left"
---- |"Right"
 
 local M = {}
 
@@ -71,16 +59,6 @@ function M.get_maybe_using_bool(bool, val)
     return M.maybe(data)
 end
 
----@class pos3: {x:integer,y:integer,z:integer}
----@alias orienation
----Towards -Z
----| "North"
----Towards +X
----| "East"
----Towards +Z
----| "South"
----Towards -X
----| "West"
 
 
 --#region Packet Build Functions

@@ -56,42 +56,42 @@ pub async fn main(
                         .await;
                 }
                 ClientComms::Packet(packet) => match packet {
-                    C2SPackets::BreakBlock { index, world, dir } => {
-                        if let Some(t) = local_server_turtles
-                            .lock()
-                            .await
-                            .get_turtle_mut_id_and_world(index, &world)
-                        {
-                            t.send_ws(S2TPackets::BreakBlock { dir }).await;
-                        }
-                    }
-                    C2SPackets::PlaceBlock {
-                        index,
-                        world,
-                        dir,
-                        text,
-                    } => {
-                        if let Some(t) = local_server_turtles
-                            .lock()
-                            .await
-                            .get_turtle_mut_id_and_world(index, &world)
-                        {
-                            t.send_ws(S2TPackets::PlaceBlock { dir, text }).await;
-                        }
-                    }
-                    C2SPackets::MoveTurtle {
-                        index,
-                        world,
-                        direction,
-                    } => {
-                        if let Some(t) = local_server_turtles
-                            .lock()
-                            .await
-                            .get_turtle_mut_id_and_world(index, &world)
-                        {
-                            t.move_(direction).await;
-                        }
-                    }
+                    // C2SPackets::BreakBlock { index, world, dir } => {
+                    //     if let Some(t) = local_server_turtles
+                    //         .lock()
+                    //         .await
+                    //         .get_turtle_mut_id_and_world(index, &world)
+                    //     {
+                    //         t.send_ws(S2TPackets::BreakBlock { dir }).await;
+                    //     }
+                    // }
+                    // C2SPackets::PlaceBlock {
+                    //     index,
+                    //     world,
+                    //     dir,
+                    //     text,
+                    // } => {
+                    //     if let Some(t) = local_server_turtles
+                    //         .lock()
+                    //         .await
+                    //         .get_turtle_mut_id_and_world(index, &world)
+                    //     {
+                    //         t.send_ws(S2TPackets::PlaceBlock { dir, text }).await;
+                    //     }
+                    // }
+                    // C2SPackets::MoveTurtle {
+                    //     index,
+                    //     world,
+                    //     direction,
+                    // } => {
+                    //     if let Some(t) = local_server_turtles
+                    //         .lock()
+                    //         .await
+                    //         .get_turtle_mut_id_and_world(index, &world)
+                    //     {
+                    //         t.move_(direction).await;
+                    //     }
+                    // }
                     C2SPackets::RequestTurtles(world) => {
                         let indexes = local_server_turtles
                             .lock()
@@ -166,15 +166,15 @@ pub async fn main(
                             .send_to(S2CPackets::Worlds(worlds), &client_index)
                             .await;
                     }
-                    C2SPackets::TurtleSelectSlot { index, world, slot } => {
-                        if let Some(t) = local_server_turtles
-                            .lock()
-                            .await
-                            .get_turtle_mut_id_and_world(index, &world)
-                        {
-                            t.send_ws(S2TPackets::SelectSlot(slot)).await;
-                        }
-                    }
+                    // C2SPackets::TurtleSelectSlot { index, world, slot } => {
+                    //     if let Some(t) = local_server_turtles
+                    //         .lock()
+                    //         .await
+                    //         .get_turtle_mut_id_and_world(index, &world)
+                    //     {
+                    //         t.send_ws(S2TPackets::SelectSlot(slot)).await;
+                    //     }
+                    // }
                     C2SPackets::SendLuaToTurtle { index, world, code } => {
                         if let Some(t) = local_server_turtles
                             .lock()
@@ -184,6 +184,7 @@ pub async fn main(
                             t.send_ws(S2TPackets::RunLuaCode(code)).await;
                         }
                     }
+                    C2SPackets::StdInForTurtle { index, value } => todo!(),
                 },
             }
         }

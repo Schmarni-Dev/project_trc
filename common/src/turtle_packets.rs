@@ -3,12 +3,6 @@ use crate::{
     Pos3,
 };
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub enum TurtleUpDown {
-    Up,
-    Forward,
-    Down,
-}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct SetupInfoData {
@@ -29,7 +23,7 @@ pub enum T2SPackets {
     SetPos(Pos3),
     SetOrientation(Orientation),
     WorldUpdate(String),
-    InventoryUpdate(TurtleInventory),
+    InventoryUpdate(Box<TurtleInventory>),
     NameUpdate(String),
     FuelUpdate(i32),
     Blocks {
@@ -39,19 +33,12 @@ pub enum T2SPackets {
     },
     Executables(Vec<String>),
     Ping,
+    StdOut(String),
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum S2TPackets {
-    Move(Vec<MoveDirection>),
-    SelectSlot(u32),
-    PlaceBlock {
-        dir: TurtleUpDown,
-        text: Option<String>,
-    },
-    BreakBlock {
-        dir: TurtleUpDown,
-    },
     RunLuaCode(String),
     GetSetupInfo,
     GetExecutables,
+    StdIn(String),
 }
