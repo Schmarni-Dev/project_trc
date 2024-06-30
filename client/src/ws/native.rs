@@ -1,5 +1,5 @@
 use bevy::{log::prelude::*, prelude::*};
-use common::client_packets::{C2SPackets, S2CPackets};
+use common::client_packets::{C2SPacket, S2CPacket};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{from_str, to_string};
@@ -11,22 +11,25 @@ pub struct WS;
 
 impl Plugin for WS {
     fn build(&self, app: &mut App) {
-        let ws_communitcator = WsCommunicator::init("ws://schmerver.mooo.com:9001");
+        // let ws_communitcator = WsCommunicator::init("ws://schmerver.mooo.com:9001");
         // add things to your app here
-        app.insert_resource(ws_communitcator);
-        app.add_systems(Update, run_ws);
+        // app.insert_resource(ws_communitcator);
+        // app.add_systems(Update, run_ws);
+
         // app.add_systems(Update, test_ws);
-        app.add_systems(Startup, run_ws);
+
+        // app.add_systems(Startup, run_ws);
+
         // app.add_systems(Startup, test_ws);
-        app.add_event::<C2SPackets>();
-        app.add_event::<S2CPackets>();
+        app.add_event::<C2SPacket>();
+        app.add_event::<S2CPacket>();
     }
 }
 
 #[derive(Resource)]
 pub struct WsCommunicator {
-    to_server: Sender<C2SPackets>,
-    from_server: Receiver<S2CPackets>,
+    to_server: Sender<C2SPacket>,
+    from_server: Receiver<S2CPacket>,
     _runtime: Runtime,
     join_handles: [JoinHandle<()>; 2],
 }
@@ -52,8 +55,8 @@ impl WsCommunicator {
             ws.split()
         });
 
-        let (s2c_tx, s2c_rx) = unbounded::<S2CPackets>();
-        let (c2s_tx, c2s_rx) = unbounded::<C2SPackets>();
+        let (s2c_tx, s2c_rx) = unbounded::<S2CPacket>();
+        let (c2s_tx, c2s_rx) = unbounded::<C2SPacket>();
         let ws_read_handle = rt.spawn(async move {
             // let mut ind = 0;
             loop {
@@ -65,7 +68,7 @@ impl WsCommunicator {
                 match e {
                     Some(Ok(Message::Text(msg))) => {
                         info!("message!");
-                        if let Ok(msg) = from_str::<S2CPackets>(&msg) {
+                        if let Ok(msg) = from_str::<S2CPacket>(&msg) {
                             _ = s2c_tx.send(msg);
                         }
                     }
@@ -114,7 +117,7 @@ impl WsCommunicator {
 }
 
 #[allow(dead_code)]
-fn test_ws(mut read: EventReader<S2CPackets>) {
+fn test_ws(mut read: EventReader<S2CPacket>) {
     for p in read.read() {
         info!("{:#?}", p)
     }
@@ -122,8 +125,8 @@ fn test_ws(mut read: EventReader<S2CPackets>) {
 
 pub fn run_ws(
     socket: Res<WsCommunicator>,
-    mut read: EventReader<C2SPackets>,
-    mut write: EventWriter<S2CPackets>,
+    mut read: EventReader<C2SPacket>,
+    mut write: EventWriter<S2CPacket>,
 ) {
     for i in socket.from_server.try_iter() {
         write.send(i);

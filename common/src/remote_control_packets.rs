@@ -1,10 +1,10 @@
 use crate::turtle::MoveDirection;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum T2SPackets {}
+pub enum RcT2SPacket {}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
-pub enum S2TPackets {
+pub enum RcS2TPacket {
     Move(Vec<MoveDirection>),
     SelectSlot(u32),
     PlaceBlock {
@@ -17,10 +17,10 @@ pub enum S2TPackets {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum S2CPacket {}
+pub enum RcS2CPacket {}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
-pub enum C2SPacket {
+pub enum RcC2SPacket {
     MoveTurtle {
         index: i32,
         world: String,

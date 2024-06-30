@@ -6,7 +6,7 @@ use bevy_mod_raycast::{
 use common::world_data::{get_chunk_containing_block, get_chunk_relative_pos};
 
 use crate::{
-    components::ChunkInstance, util::vec3_to_pos3, BlockBlacklist, DoBlockRaymarch, MiscState,
+    /* components::ChunkInstance, */ chunk::ChunkData, util::vec3_to_pos3, BlockBlacklist, DoBlockRaymarch, MiscState
 };
 
 pub struct RaycastPlugin;
@@ -22,7 +22,7 @@ fn do_block_raycast(block_march: Res<DoBlockRaymarch>) -> bool {
 }
 
 fn block_raycast(
-    chunk_q: Query<&ChunkInstance>,
+    chunk_q: Query<&ChunkData>,
     mut misc_state: ResMut<MiscState>,
     block_blacklist: ResMut<BlockBlacklist>,
     cursor_ray: Res<CursorRay>,
@@ -61,7 +61,7 @@ fn block_raycast(
             let pos =
                 vec3_to_pos3((intersaction.position() - intersaction.normal() * 0.01).floor());
             let c_pos = get_chunk_containing_block(&pos);
-            let chunk = chunk_q.iter().find(|chunk| chunk.get_chunk_pos() == &c_pos);
+            let chunk = chunk_q.iter().find(|chunk| chunk.get_chunk_pos() == c_pos);
             chunk.and_then(|c| {
                 let rel = get_chunk_relative_pos(&pos);
                 let b = c.get_block_id(&rel)?;

@@ -1,19 +1,19 @@
 #![allow(clippy::too_many_arguments)]
-use actually_usable_voxel_mesh_gen::util::string_to_color;
-use bevy::log::{prelude::*, LogPlugin};
 use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
 use bevy_egui::{
-    egui::{self, Color32, Grid},
+    egui::{self, Grid},
     EguiContexts, EguiPlugin, EguiSettings,
 };
+use bevy_mod_picking::DefaultPickingPlugins;
 use bevy_mod_raycast::DefaultRaycastingPlugin;
+use bevy_schminput::DefaultSchmugins;
 use common::{
-    client_packets::{C2SPackets, S2CPackets, SetTurtlesData},
-    turtle::{Item, Maybe, MoveDirection},
-    // turtle_packets::TurtleUpDown,
-    world_data::{get_chunk_containing_block, Chunk},
+    client_packets::{C2SPacket, S2CPacket, SetTurtlesData},
+    turtle::{Maybe, Orientation},
+    world_data::{get_chunk_containing_block, Block, Chunk},
+    Pos3,
 };
-use custom_egui_widgets::item_box::{item_box, ItemSlotActions, TX};
+use custom_egui_widgets::item_box::SlotInteraction;
 use egui_code_editor::{CodeEditor, Syntax};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
@@ -26,19 +26,25 @@ use std::{
     path::PathBuf,
     sync::{mpsc, Arc},
 };
-use trc_client::executable_files::ExecutableFilesPlugin;
-use trc_client::external_inv_support::ExternalInvSupportPlugin;
 use trc_client::{
-    bundels::ChunkBundle,
-    components::ChunkInstance,
     events::{ActiveTurtleChanged, ActiveTurtleRes, EventsPlugin},
-    idk::ClientChunk,
+    primary_ui::PrimaryUiPlugin,
     raycast::RaycastPlugin,
     systems::Systems,
+    turtle::LocallyControlledTurtle,
+    turtle_input::TurtleInputPlugin,
     turtle_stuff::{turtle_spawner, SpawnTurtle, TurtleInstance, TurtleModels},
     ws::WS,
     BlockBlacklist, DoBlockRaymarch, MiscState, ShowFileDialog,
 };
+use trc_client::{
+    executable_files::ExecutableFilesPlugin,
+    lerp_transform::LerpTransformPlugin,
+    turtle::{TurtleBundle, TurtlePlugin},
+    turtle_inventory::TurtleInventoryPlugin,
+    turtle_movement::TurtleMovementPlugin,
+};
+use trc_client::{external_inv_support::ExternalInvSupportPlugin, turtle};
 use trc_client::{input, InputState, WorldState};
 
 fn main() {
@@ -59,6 +65,9 @@ fn main() {
                 ..Default::default()
             }), // .disable::<LogPlugin>(),
         )
+        .add_plugins(DefaultPickingPlugins)
+        .add_plugins(DefaultSchmugins)
+        .add_plugins(LerpTransformPlugin)
         .add_plugins(ExecutableFilesPlugin)
         .add_plugins(LookTransformPlugin)
         .add_plugins(OrbitCameraPlugin::new(true))
@@ -69,6 +78,11 @@ fn main() {
         .add_plugins(EguiPlugin)
         .add_plugins(RaycastPlugin)
         .add_plugins(ExternalInvSupportPlugin)
+        .add_plugins(TurtlePlugin)
+        .add_plugins(TurtleMovementPlugin)
+        .add_plugins(TurtleInputPlugin)
+        .add_plugins(TurtleInventoryPlugin)
+        .add_plugins(PrimaryUiPlugin)
         .add_event::<SpawnTurtle>()
         .add_event::<SpawnChunk>()
         .insert_resource(AmbientLight {
@@ -104,21 +118,56 @@ fn main() {
         .add_systems(Update, setup_turtles)
         .add_systems(Update, turtle_spawner)
         .add_systems(Update, handle_chunk_spawning)
-        .add_systems(
-            Update,
-            hanlde_world_updates.run_if(on_event::<S2CPackets>()),
-        )
-        .add_systems(Update, set_world_on_event)
+        // .add_systems(Update, hanlde_world_updates.run_if(on_event::<S2CPacket>()))
+        // .add_systems(Update, set_world_on_event)
         // .add_systems(Update, animate_light_direction)
         .add_systems(Update, test)
         .add_systems(Update, input::orbit_input_map)
-        .add_systems(Update, ui)
+        // .add_systems(Update, ui)
         .add_systems(Update, update_worlds)
         .add_systems(Update, turtle_stuff_update)
         .add_systems(Update, handle_world_selection_updates)
         .add_systems(Update, file_drop)
         .add_systems(Update, fix_curr_turtle_updates)
+        .add_systems(PostStartup, spawn_dummy_turtle)
+        // .add_systems(PostStartup, set_fake_block)
         .run();
+}
+// fn set_fake_block(mut query: Query<&mut ChunkInstance>, mut chunk_spawn: EventWriter<SpawnChunk>) {
+//     let block = Block::new(Some("minecraft:dirt".into()), &Pos3::NEG_Y, "test_world");
+//     let chunk_pos = get_chunk_containing_block(block.get_pos());
+//     match query
+//         .iter_mut()
+//         .find(|chunk| chunk.get_chunk_pos() == &chunk_pos)
+//     {
+//         Some(mut chunk) => {
+//             chunk.inner_mut().set_block(block.clone());
+//         }
+//         None => {
+//             let mut chunk = Chunk::new(chunk_pos);
+//             chunk.set_block(block.clone());
+//             chunk_spawn.send(SpawnChunk(chunk));
+//         }
+//     }
+// }
+
+fn spawn_dummy_turtle(mut commands: Commands, models: Res<turtle::TurtleModels>) {
+    commands
+        .spawn(TurtleBundle::from_common_turtle(
+            common::turtle::Turtle {
+                index: 1,
+                name: "Test".into(),
+                inventory: Maybe::None,
+                position: Pos3::ZERO,
+                orientation: Orientation::North,
+                fuel: 20,
+                max_fuel: 360,
+                is_online: true,
+                world: "test_world".into(),
+            },
+            &models,
+        ))
+        .insert(LocallyControlledTurtle);
 }
 
 fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowFileDialog>) {
@@ -143,25 +192,27 @@ fn file_drop(mut dnd_evr: EventReader<FileDragAndDrop>, mut dialog: ResMut<ShowF
 fn handle_world_selection_updates(
     worlds: Res<WorldState>,
     mut old: Local<Option<String>>,
-    mut ws_writer: EventWriter<C2SPackets>,
+    mut ws_writer: EventWriter<C2SPacket>,
 ) {
     if worlds.curr_world != *old {
         if let Some(curr) = &worlds.curr_world {
-            ws_writer.send(C2SPackets::RequestWorld(curr.to_owned()));
-            ws_writer.send(C2SPackets::RequestTurtles(curr.to_owned()));
+            ws_writer.send(C2SPacket::SwitchWorld(Maybe::Some(curr.clone())));
+            ws_writer.send(C2SPacket::RequestWorld);
+            ws_writer.send(C2SPacket::RequestTurtles);
         }
     }
     old.clone_from(&worlds.curr_world);
 }
 
-fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPackets>) {
+fn update_worlds(mut worlds: ResMut<WorldState>, mut ws: EventReader<S2CPacket>) {
     for p in ws.read() {
-        if let S2CPackets::Worlds(w) = p {
+        if let S2CPacket::Worlds(w) = p {
             worlds.curr_world = w.first().cloned();
             w.clone_into(&mut worlds.worlds);
         }
     }
 }
+
 fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.scale_factor = 1.5;
 }
@@ -169,11 +220,11 @@ fn ui_setup(mut egui_settings: ResMut<EguiSettings>) {
 fn turtle_stuff_update(
     world_state: Res<WorldState>,
     mut turtles: Query<&mut TurtleInstance>,
-    mut ws_reader: EventReader<S2CPackets>,
+    mut ws_reader: EventReader<S2CPacket>,
 ) {
     for p in ws_reader.read() {
         match p {
-            S2CPackets::TurtleInventoryUpdate(data) => {
+            S2CPacket::TurtleInventoryUpdate(data) => {
                 if world_state
                     .curr_world
                     .as_ref()
@@ -188,7 +239,7 @@ fn turtle_stuff_update(
                         });
                 }
             }
-            S2CPackets::TurtleFuelUpdate(data) => {
+            S2CPacket::TurtleFuelUpdate(data) => {
                 if world_state
                     .curr_world
                     .as_ref()
@@ -225,7 +276,7 @@ fn ui(
     turtles: Query<&TurtleInstance>,
     mut active_turtle_res: ResMut<ActiveTurtleRes>,
     mut input_state: ResMut<InputState>,
-    mut ws_writer: EventWriter<C2SPackets>,
+    mut ws_writer: EventWriter<C2SPacket>,
     egui_input: Res<bevy_egui::EguiMousePosition>,
     misc_state: Res<MiscState>,
     mut do_block_march: ResMut<DoBlockRaymarch>,
@@ -308,7 +359,7 @@ fn ui(
                             .show(ui, &mut lua_code_str);
                         ui.horizontal(|ui| {
                             if ui.button("Submit").clicked() {
-                                ws.send(C2SPackets::SendLuaToTurtle {
+                                ws.send(C2SPacket::SendLuaToTurtle {
                                     index: t.index,
                                     world: t.world.clone(),
                                     code: (*lua_code_str).clone(),
@@ -327,99 +378,68 @@ fn ui(
 
     input_state.block_camera_updates |= main_panel.response.hovered();
 
-    if let Some(t) = curr_turtle.as_ref() {
-        let (tx, rx) = mpsc::channel();
-        if let Maybe::Some(inv) = t.inventory.clone() {
-            let window = egui::Window::new("Inventory")
-                .resizable(false)
-                // .enabled(!file_dialog.show)
-                .show(contexts.ctx_mut(), |ui| {
-                    let inv = inv.iter().map(|i| i.to_owned()).zip(0u8..);
-                    let slot = t.inventory.clone().unwrap().selected_slot;
-                    ui.spacing_mut().interact_size.x = 0.0;
-                    Grid::new("inv_grid")
-                        .spacing(egui::Vec2::splat(2.0))
-                        .show(ui, |ui| {
-                            for (item, i) in inv {
-                                ui.add(ib(
-                                    item,
-                                    i as u32 + 1,
-                                    tx.clone(),
-                                    slot as u32,
-                                    &mut item_amount_modifier,
-                                ));
-                                if i % 4 == 3 {
-                                    ui.end_row();
-                                }
-                            }
-                        });
-                });
-
-            while let Ok((slot, action)) = rx.try_recv() {
-                match action {
-                    // ItemSlotActions::SelectSlot => ws_writer.send(C2SPackets::TurtleSelectSlot {
-                    //     index: t.index,
-                    //     world: t.world.clone(),
-                    //     slot,
-                    // }),
-                    ItemSlotActions::Transfer(amount) => {
-                        ws_writer.send(C2SPackets::SendLuaToTurtle {
-                            index: t.index,
-                            world: t.world.clone(),
-                            code: format!("turtle.transferTo({slot}, {amount})"),
-                        });
-                    }
-                    ItemSlotActions::Refuel => {
-                        ws_writer.send(C2SPackets::SendLuaToTurtle {
-                            index: t.index,
-                            world: t.world.clone(),
-                            code: "turtle.refuel()".to_string(),
-                        });
-                    }
-                    _ => (),
-                };
-            }
-            input_state.block_camera_updates |= window
-                .zip(egui_input.0)
-                .is_some_and(|(w, (_, i))| w.response.rect.contains(i.to_pos2()));
-        }
-    }
-}
-
-fn ib(
-    item: Maybe<Item>,
-    slot_id: u32,
-    tx: TX,
-    selected: u32,
-    amount_modifier: &mut u8,
-) -> impl egui::Widget + '_ {
-    let item: Option<Item> = item.into();
-    let color = match item.clone() {
-        None => Color32::DARK_GRAY,
-        Some(it) => {
-            let color: [u8; 3] = string_to_color(&it.name)[0..3].try_into().unwrap();
-            Color32::from_rgb(
-                (color[0] >> 1) | 128u8,
-                (color[1] >> 1) | 128u8,
-                (color[2] >> 1) | 128u8,
-            )
-        }
-    };
-    item_box(
-        item.clone().map_or(0, |i| i.count),
-        item.clone().map_or("".into(), |i| i.name).into(),
-        color,
-        0.9,
-        slot_id,
-        tx.clone(),
-        slot_id == selected,
-        amount_modifier,
-    )
+    // if let Some(t) = curr_turtle.as_ref() {
+    //     let (tx, rx) = mpsc::channel();
+    //     if let Maybe::Some(inv) = t.inventory.clone() {
+    //         let window = egui::Window::new("Inventory")
+    //             .resizable(false)
+    //             // .enabled(!file_dialog.show)
+    //             .show(contexts.ctx_mut(), |ui| {
+    //                 let inv = inv.iter().map(|i| i.to_owned()).zip(0u8..);
+    //                 let slot = t.inventory.clone().unwrap().selected_slot;
+    //                 ui.spacing_mut().interact_size.x = 0.0;
+    //                 Grid::new("inv_grid")
+    //                     .spacing(egui::Vec2::splat(2.0))
+    //                     .show(ui, |ui| {
+    //                         for (item, i) in inv {
+    //                             ui.add(ib(
+    //                                 item,
+    //                                 i as u32 + 1,
+    //                                 tx.clone(),
+    //                                 slot as u32,
+    //                                 &mut item_amount_modifier,
+    //                             ));
+    //                             if i % 4 == 3 {
+    //                                 ui.end_row();
+    //                             }
+    //                         }
+    //                     });
+    //             });
+    //
+    //         while let Ok((slot, action)) = rx.try_recv() {
+    //             match action {
+    //                 // ItemSlotActions::SelectSlot => ws_writer.send(C2SPackets::TurtleSelectSlot {
+    //                 //     index: t.index,
+    //                 //     world: t.world.clone(),
+    //                 //     slot,
+    //                 // }),
+    //                 SlotInteraction::Transfer(amount) => {
+    //                     ws_writer.send(C2SPacket::SendLuaToTurtle {
+    //                         index: t.index,
+    //                         world: t.world.clone(),
+    //                         code: format!("turtle.transferTo({slot}, {amount})"),
+    //                     });
+    //                 }
+    //                 SlotInteraction::Refuel => {
+    //                     ws_writer.send(C2SPacket::SendLuaToTurtle {
+    //                         index: t.index,
+    //                         world: t.world.clone(),
+    //                         code: "turtle.refuel()".to_string(),
+    //                     });
+    //                 }
+    //                 _ => (),
+    //             };
+    //         }
+    //         input_state.block_camera_updates |= window
+    //             .zip(egui_input.0)
+    //             .is_some_and(|(w, (_, i))| w.response.rect.contains(i.to_pos2()));
+    //     }
+    // }
 }
 
 fn test(
     input: Res<ButtonInput<KeyCode>>,
-    mut ws_writer: EventWriter<C2SPackets>,
+    mut ws_writer: EventWriter<C2SPacket>,
     mut contexts: EguiContexts,
     active_turtle_res: Res<ActiveTurtleRes>,
     turtles: Query<&TurtleInstance>,
@@ -516,14 +536,14 @@ fn test(
 
 fn setup_turtles(
     mut spwan_turtle: EventWriter<SpawnTurtle>,
-    mut ws_reader: EventReader<S2CPackets>,
+    mut ws_reader: EventReader<S2CPacket>,
     world_state: Res<WorldState>,
     active_turtle_res: Res<ActiveTurtleRes>,
     query: Query<Entity, With<TurtleInstance>>,
     mut commands: Commands,
 ) {
     for p in ws_reader.read() {
-        if let S2CPackets::SetTurtles(SetTurtlesData { turtles, world }) = p.to_owned() {
+        if let S2CPacket::SetTurtles(SetTurtlesData { turtles, world }) = p.to_owned() {
             if world_state.curr_world.as_ref().is_some_and(|w| w == &world) {
                 query.iter().for_each(|entity| {
                     commands.entity(entity).despawn_recursive();
@@ -544,7 +564,7 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut ws_writer: EventWriter<C2SPackets>,
+    mut ws_writer: EventWriter<C2SPacket>,
 ) {
     // #[cfg(not(target_arch = "wasm32"))]
     // let zoomies = 1.0;
@@ -585,51 +605,51 @@ fn setup(
     commands.insert_resource(ChunkMat(
         materials.add(StandardMaterial::from(Color::rgb(1., 1., 1.))),
     ));
-    ws_writer.send(C2SPackets::RequestWorlds);
+    ws_writer.send(C2SPacket::RequestWorld);
 }
 
-fn set_world_on_event(
-    query: Query<Entity, With<ChunkInstance>>,
-    mut commands: Commands,
-    mut event: EventReader<S2CPackets>,
-    mut chunk_spawn: EventWriter<SpawnChunk>,
-) {
-    for e in event.read() {
-        if let S2CPackets::SetWorld(world) = e {
-            query.iter().for_each(|entity| {
-                commands.entity(entity).despawn_recursive();
-            });
-            world.get_chunks().iter().for_each(|(_, chunk)| {
-                chunk_spawn.send(SpawnChunk(chunk.clone()));
-            })
-        }
-    }
-}
+// fn set_world_on_event(
+//     query: Query<Entity, With<ChunkInstance>>,
+//     mut commands: Commands,
+//     mut event: EventReader<S2CPacket>,
+//     mut chunk_spawn: EventWriter<SpawnChunk>,
+// ) {
+//     for e in event.read() {
+//         if let S2CPacket::SetWorld(world) = e {
+//             query.iter().for_each(|entity| {
+//                 commands.entity(entity).despawn_recursive();
+//             });
+//             world.get_chunks().iter().for_each(|(_, chunk)| {
+//                 chunk_spawn.send(SpawnChunk(chunk.clone()));
+//             })
+//         }
+//     }
+// }
 
-fn hanlde_world_updates(
-    mut event: EventReader<S2CPackets>,
-    mut query: Query<&mut ChunkInstance>,
-    mut chunk_spawn: EventWriter<SpawnChunk>,
-) {
-    for e in event.read() {
-        if let S2CPackets::WorldUpdate(block) = e {
-            let chunk_pos = get_chunk_containing_block(block.get_pos());
-            match query
-                .iter_mut()
-                .find(|chunk| chunk.get_chunk_pos() == &chunk_pos)
-            {
-                Some(mut chunk) => {
-                    chunk.inner_mut().set_block(block.clone());
-                }
-                None => {
-                    let mut chunk = Chunk::new(chunk_pos);
-                    chunk.set_block(block.clone());
-                    chunk_spawn.send(SpawnChunk(chunk));
-                }
-            }
-        }
-    }
-}
+// fn hanlde_world_updates(
+//     mut event: EventReader<S2CPacket>,
+//     mut query: Query<&mut ChunkInstance>,
+//     mut chunk_spawn: EventWriter<SpawnChunk>,
+// ) {
+//     for e in event.read() {
+//         if let S2CPacket::WorldUpdate(block) = e {
+//             let chunk_pos = get_chunk_containing_block(block.get_pos());
+//             match query
+//                 .iter_mut()
+//                 .find(|chunk| chunk.get_chunk_pos() == &chunk_pos)
+//             {
+//                 Some(mut chunk) => {
+//                     chunk.inner_mut().set_block(block.clone());
+//                 }
+//                 None => {
+//                     let mut chunk = Chunk::new(chunk_pos);
+//                     chunk.set_block(block.clone());
+//                     chunk_spawn.send(SpawnChunk(chunk));
+//                 }
+//             }
+//         }
+//     }
+// }
 
 #[derive(Resource, Debug, DerefMut, Deref)]
 struct ChunkMat(Handle<StandardMaterial>);
@@ -643,13 +663,13 @@ fn handle_chunk_spawning(
     mut event: EventReader<SpawnChunk>,
     chunk_mat: Res<ChunkMat>,
 ) {
-    for e in event.read() {
-        commands.spawn(ChunkBundle::new(
-            ClientChunk::from_chunk(e.0.clone()),
-            &mut meshes,
-            chunk_mat.clone(),
-        ));
-    }
+    // for e in event.read() {
+    //     commands.spawn(ChunkBundle::new(
+    //         ClientChunk::from_chunk(e.0.clone()),
+    //         &mut meshes,
+    //         chunk_mat.clone(),
+    //     ));
+    // }
 }
 
 // fn animate_light_direction(

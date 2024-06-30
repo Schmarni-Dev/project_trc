@@ -9,11 +9,11 @@ CREATE TABLE IF NOT EXISTS turtles (
         world TEXT NOT NULL,
         PRIMARY KEY (world,id),
         FOREIGN KEY (world)
-		REFERENCES worlds (name)
+	REFERENCES worlds (name)
 );
 
 CREATE TABLE IF NOT EXISTS worlds (
-		name TEXT NOT NULL UNIQUE PRIMARY KEY
+	name TEXT NOT NULL UNIQUE PRIMARY KEY
 );
 
 CREATE TABLE IF NOT EXISTS blocks (
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS blocks (
         world TEXT NOT NULL,
         world_pos TEXT NOT NULL,
         is_air BOOLEAN NOT NULL,
-		PRIMARY KEY (world,world_pos),
-		FOREIGN KEY (world)
-		REFERENCES worlds (name)
+	PRIMARY KEY (world,world_pos),
+	FOREIGN KEY (world)
+	REFERENCES worlds (name)
 );

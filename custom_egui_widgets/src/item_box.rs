@@ -1,38 +1,37 @@
-use std::{rc::Rc, sync::mpsc};
+use derive_more::{Deref, DerefMut};
+use egui::{Color32, FontId, Response, RichText, Stroke, Ui};
+use std::{borrow::Cow, sync::mpsc};
 
-use egui::{Color32, FontId, Response, RichText, Slider, Stroke, Ui};
-
-pub enum ItemSlotActions {
-    SelectSlot,
-    Transfer(u8),
-    Refuel,
+pub enum SlotInteraction<T> {
+    SlotClicked,
+    Action(T),
 }
 
-pub type TX = mpsc::Sender<(u32, ItemSlotActions)>;
+pub trait SlotAction: Sized + Clone + 'static {
+    fn get_name(&self) -> Cow<'static, str>;
+}
 
-pub fn item_box(
-    amount: u32,
-    name: Rc<str>,
+pub trait SlotActionProvider: Sized + 'static {
+    type Action: SlotAction;
+    fn get_secondary_actions(&self, slot_id: usize) -> Vec<Self::Action>;
+    fn get_primary_action(&self) -> Self::Action;
+    fn interact(&mut self, slot: usize, action: Self::Action);
+    fn draw_ctx_ui(&mut self, ui: &mut Ui);
+}
+
+#[derive(Clone, Deref, DerefMut)]
+pub struct SlotActionSender<T: SlotActionProvider>(mpsc::Sender<(usize, SlotInteraction<T>)>);
+
+pub fn item_box<'a, T: SlotActionProvider>(
+    amount: usize,
+    name: &'a str,
     color: Color32,
     scale: f32,
-    slot_id: u32,
-    tx: TX,
+    slot_id: usize,
+    provider: &'a mut T,
     selected: bool,
-    amount_modifier: &mut u8,
-) -> impl egui::Widget + '_ {
-    move |ui: &mut Ui| {
-        item_box_render(
-            ui,
-            amount,
-            name,
-            color,
-            scale,
-            slot_id,
-            tx,
-            selected,
-            amount_modifier,
-        )
-    }
+) -> impl egui::Widget + 'a {
+    move |ui: &mut Ui| item_box_render(ui, amount, name, color, scale, slot_id, provider, selected)
 }
 
 fn get_gray_scale(color: &Color32) -> f32 {
@@ -43,48 +42,37 @@ fn get_gray_scale(color: &Color32) -> f32 {
     return luma;
 }
 
-fn item_box_context_menu(
-    slot_id: u32,
-    amount: u32,
-    name: Rc<str>,
-    tx: TX,
-    amount_modifier: &mut u8,
+fn item_box_context_menu<T: SlotActionProvider>(
+    slot_id: usize,
+    provider: &mut T,
 ) -> impl FnOnce(&mut Ui) + '_ {
-    move |ui: &mut Ui| item_box_context_menu_render(ui, name, amount, slot_id, tx, amount_modifier)
+    move |ui: &mut Ui| item_box_context_menu_render(ui, slot_id, provider)
 }
 
-fn item_box_render(
+#[allow(clippy::too_many_arguments)]
+fn item_box_render<T: SlotActionProvider>(
     ui: &mut Ui,
-    amount: u32,
-    name: Rc<str>,
+    amount: usize,
+    name: &str,
     color: Color32,
     scale: f32,
-    slot_id: u32,
-    tx: TX,
+    slot_id: usize,
+    provider: &mut T,
     selected: bool,
-    amount_modifier: &mut u8,
 ) -> Response {
     let desired_size = egui::Vec2::splat(2.0 * scale * ui.spacing().interact_size.y);
     let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
     let luma = get_gray_scale(&color);
     let inver = 1.0 - luma.clamp(0.0, 1.0);
-    let gray_color = Color32::from_gray(((255u8 as f32 * inver) as i64).try_into().unwrap());
+    let gray_color = Color32::from_gray(((255f32 * inver) as i64).try_into().unwrap());
 
-    response.context_menu(item_box_context_menu(
-        slot_id,
-        amount,
-        name.clone(),
-        tx.clone(),
-        amount_modifier,
-    ));
+    response.context_menu(item_box_context_menu(slot_id, provider));
     // .on_hover_cursor(egui::CursorIcon::PointingHand);
-    if amount != 0 {
-        response = response
-            .on_hover_text_at_pointer(RichText::new(name.as_ref()).strong().monospace().heading());
-    }
+    response =
+        response.on_hover_text_at_pointer(RichText::new(name).strong().monospace().heading());
 
     if response.clicked() {
-        tx.send((slot_id, ItemSlotActions::SelectSlot)).unwrap();
+        provider.interact(slot_id, provider.get_primary_action());
     }
 
     if ui.is_rect_visible(rect) {
@@ -109,76 +97,14 @@ fn item_box_render(
     response
 }
 
-fn item_box_context_menu_render(
+fn item_box_context_menu_render<T: SlotActionProvider>(
     ui: &mut Ui,
-    name: Rc<str>,
-    amount: u32,
-    slot_id: u32,
-    tx: TX,
-    amount_modifier: &mut u8,
+    slot_id: usize,
+    provider: &mut T,
 ) {
-    if amount != 0 {
-        ui.label(RichText::new(name.as_ref()).strong().heading());
+    for action in provider.get_secondary_actions(slot_id).into_iter() {
+        if ui.button(action.get_name()).clicked() {
+            provider.interact(slot_id, action.clone());
+        }
     }
-    ui.add(
-        Slider::new(amount_modifier, 0..=64)
-            .integer()
-            .text("Amount"),
-    );
-    if ui.button("Select Slot").clicked() {
-        tx.send((slot_id, ItemSlotActions::SelectSlot)).unwrap();
-    }
-
-    if ui.button("Move the Selected Stack here").clicked() {
-        tx.send((slot_id, ItemSlotActions::Transfer(64))).unwrap();
-    }
-    if ui
-        .button(format!(
-            "Move {} Items from the Selected Stack here",
-            amount_modifier
-        ))
-        .clicked()
-    {
-        tx.send((slot_id, ItemSlotActions::Transfer(*amount_modifier)))
-            .unwrap();
-    }
-    if ui.button("Refuel using the Selected Slot").clicked() {
-        tx.send((slot_id, ItemSlotActions::Refuel)).unwrap()
-    }
-    // if ui.button("Move Half of the Selected Stack here").clicked() {
-    //     tx.send((slot_id, ItemSlotActions::Transfer(amount / 2)))
-    //         .unwrap();
-    // }
-    // if ui
-    //     .button("Move 16 items from the Selected Stack here")
-    //     .clicked()
-    // {
-    //     tx.send((slot_id, ItemSlotActions::Transfer(amount.min(16))))
-    //         .unwrap();
-    // }
-    // if ui
-    //     .button("Move 32 items from the Selected Stack here")
-    //     .clicked()
-    // {
-    //     tx.send((slot_id, ItemSlotActions::Transfer(amount.min(32))))
-    //         .unwrap();
-    // }
-    // if ui
-    //     .button("Move 48 items from the Selected Stack here")
-    //     .clicked()
-    // {
-    //     tx.send((slot_id, ItemSlotActions::Transfer(amount.min(48))))
-    //         .unwrap();
-    // }
-    // if ui.button("Move 3/4 of the Selected Stack here").clicked() {
-    //     tx.send((
-    //         slot_id,
-    //         ItemSlotActions::Transfer(((amount as f32 / 1.5).floor() as i64).try_into().unwrap()),
-    //     ))
-    //     .unwrap();
-    // }
-    // if ui.button("Move 1/4 of the Selected Stack here").clicked() {
-    //     tx.send((slot_id, ItemSlotActions::Transfer(amount / 4)))
-    //         .unwrap();
-    // }
 }

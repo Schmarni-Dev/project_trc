@@ -3,8 +3,7 @@ use common::turtle::Turtle;
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    components::LerpTransform,
-    util::{pos3_to_vec3, quat_from_dir},
+    lerp_transform::LerpTransform, util::{pos3_to_vec3, quat_from_dir}
 };
 
 pub const TURTLE_LERP_TIME: f32 = 0.5;

@@ -15,7 +15,7 @@ members = [
 # opt-level = 3
 [workspace.dependencies]
 thiserror = "1.0.56"
-bevy = { version = "0.13.1", features = ["wayland"] }
+bevy = { version = "0.13.2", default-features = false }
 smooth-bevy-cameras = "0.11.0"
 serde_json = "1"
 url = "2.5"
@@ -38,20 +38,22 @@ actually_usable_voxel_mesh_gen = { path = "./actually_usable_voxel_mesh_gen" }
 common = { path = "./common" }
 custom_egui_widgets = { path = "./custom_egui_widgets" }
 color-eyre = "0.6.3"
-anyhow = "1.0.79"
-# eyre = "0.6.12"
+# anyhow = "1.0.79"
+eyre = "0.6.12"
 log = "0.4.20"
 chrono = "0.4.33"
 rand = "0.8.5"
-axum = "0.7.4"
+axum = "0.7.5"
 rayon = "1.8.1"
 bevy_mod_raycast = "0.17"
+bevy_mod_picking = { version = "0.19", default-features = false }
 sqlx = { version = "0.7.4", features = [
 	"runtime-tokio",
 	"tls-rustls",
 	"sqlite",
 ] }
 tower-http = "0.5.2"
+derive_more = "0.99"
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3

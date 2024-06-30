@@ -6,6 +6,22 @@ use super::vec3d::Vec3D;
 
 pub const CHUNK_SIZE: i32 = 16;
 
+pub const fn get_chunk_key_mask(i: usize) -> u32 {
+    match i {
+        0 => 0b001001001001001001001001001001001,
+        1 => 0b010010010010010010010010010010010,
+        2 => 0b001001001001001001001001001001001,
+        _ => 0,
+    }
+}
+
+pub const fn chunk_pos_to_chunk_key(pos: &Pos3) -> u32 {
+    let x = pos.x.unsigned_abs() & get_chunk_key_mask(0);
+    let y = pos.y.unsigned_abs() & get_chunk_key_mask(1);
+    let z = pos.z.unsigned_abs() & get_chunk_key_mask(2);
+    x | y | z
+}
+
 pub fn get_chunk_containing_block(pos: &Pos3) -> Pos3 {
     Pos3::new(
         ((pos.x as f32) / (CHUNK_SIZE as f32)).floor() as i32,

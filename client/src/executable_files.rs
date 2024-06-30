@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
-use common::client_packets::C2SPackets;
+use common::client_packets::C2SPacket;
 
 use crate::{events::ActiveTurtleRes, turtle_stuff::TurtleInstance, ShowFileDialog};
 
@@ -17,7 +17,7 @@ fn run_local_file_dialog(
     mut contexts: EguiContexts,
     turtles: Query<&TurtleInstance>,
     active_turtle_res: Res<ActiveTurtleRes>,
-    mut ws_writer: EventWriter<C2SPackets>,
+    mut ws_writer: EventWriter<C2SPacket>,
 ) {
     let curr_turtle = turtles
         .iter()
@@ -47,7 +47,7 @@ fn run_local_file_dialog(
                         file_dialog.show = false;
                         // send shit to turtle
                         if let Some(t) = curr_turtle {
-                            ws_writer.send(C2SPackets::SendLuaToTurtle {
+                            ws_writer.send(C2SPacket::SendLuaToTurtle {
                                 index: t.index,
                                 world: t.world.clone(),
                                 code: file_dialog.conntents.clone(),

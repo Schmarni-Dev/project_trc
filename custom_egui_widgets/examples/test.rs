@@ -51,13 +51,13 @@ impl eframe::App for App {
         });
         while let Ok((id, action)) = rx.try_recv() {
             match action {
-                custom_egui_widgets::item_box::ItemSlotActions::SelectSlot => {
+                custom_egui_widgets::item_box::SlotInteraction::SlotClicked => {
                     println!("Select Slot: {id}")
                 }
-                custom_egui_widgets::item_box::ItemSlotActions::Transfer(amount) => {
+                custom_egui_widgets::item_box::SlotInteraction::Transfer(amount) => {
                     println!("Transfer {amount} items to Slot: {id}")
                 }
-                custom_egui_widgets::item_box::ItemSlotActions::Refuel => {
+                custom_egui_widgets::item_box::SlotInteraction::Refuel => {
 
                     println!("Refuel with Slot: {id}")
                 }

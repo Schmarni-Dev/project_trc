@@ -1,11 +1,10 @@
 use bevy::{prelude::*, render::render_asset::RenderAssetUsages};
-use common::client_packets::S2CPackets;
+use common::client_packets::S2CPacket;
 use smooth_bevy_cameras::LookTransform;
 
 use crate::{
-    components::{ChunkInstance, LerpTransform},
     events::{ActiveTurtleChanged, ActiveTurtleRes},
-    idk::do_mesh_shit,
+    lerp_transform::LerpTransform,
     turtle_stuff::{TurtleInstance, TurtleModels, TURTLE_LERP_TIME},
     util::{pos3_to_vec3, quat_from_dir},
     BlockBlacklist,
@@ -19,15 +18,11 @@ pub struct Systems;
 impl Plugin for Systems {
     fn build(&self, app: &mut App) {
         // add things to your app here
-        app.add_systems(Update, lerp_pos_system);
         app.add_systems(Update, move_turtle);
         app.add_systems(Update, update_turtle_model);
         app.add_systems(Update, update_turtle_component);
         app.add_systems(Update, update_cam_point_on_turtle_move);
         app.add_systems(Update, update_cam_point_on_turtle_select);
-        app.add_systems(Update, lerp_rot_system);
-        app.add_systems(Update, chunk_update_mesh);
-        app.add_systems(Update, update_chunk_block_blacklists);
     }
 }
 
@@ -51,19 +46,6 @@ fn update_turtle_component(
     }
 }
 
-fn update_chunk_block_blacklists(
-    block_blacklist: Res<BlockBlacklist>,
-    mut chunks: Query<&mut ChunkInstance>,
-) {
-    let c = block_blacklist.is_changed();
-    chunks
-        .iter_mut()
-        .filter(|ch| ch.setup | c)
-        .for_each(|mut c| {
-            c.inner_mut().blacklist = block_blacklist.block_render_blacklist.clone();
-            c.setup = false
-        });
-}
 pub fn update_cam_point_on_turtle_select(
     turtles: Query<(&Transform, &LerpTransform, &TurtleInstance)>,
     mut cams: Query<&mut LookTransform>,
@@ -98,42 +80,6 @@ pub fn update_cam_point_on_turtle_move(
     }
 }
 
-pub fn chunk_update_mesh(
-    query: Query<(Entity, &ChunkInstance), Changed<ChunkInstance>>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    for (entity, chunk_instance) in query.iter() {
-        let mut mesh = Mesh::new(
-            bevy::render::render_resource::PrimitiveTopology::TriangleList,
-            RenderAssetUsages::MAIN_WORLD,
-        );
-        do_mesh_shit(&mut mesh, chunk_instance);
-        commands.entity(entity).remove::<Handle<Mesh>>();
-        commands.entity(entity).insert(meshes.add(mesh));
-    }
-}
-
-pub fn lerp_rot_system(time: Res<Time>, mut query: Query<(&mut Transform, &mut LerpTransform)>) {
-    for (mut transform, mut lerp_rot) in &mut query {
-        lerp_rot.current_rot_time =
-            (lerp_rot.current_rot_time + (time.delta_seconds() / lerp_rot.rot_time)).clamp(0., 1.);
-        transform.rotation = lerp_rot
-            .start_rot
-            .lerp(lerp_rot.end_rot, lerp_rot.current_rot_time);
-    }
-}
-
-pub fn lerp_pos_system(time: Res<Time>, mut query: Query<(&mut Transform, &mut LerpTransform)>) {
-    for (mut transform, mut lerp_pos) in &mut query {
-        lerp_pos.current_pos_time =
-            (lerp_pos.current_pos_time + (time.delta_seconds() / lerp_pos.pos_time)).clamp(0., 1.);
-        transform.translation = lerp_pos
-            .start_pos
-            .lerp(lerp_pos.end_pos, lerp_pos.current_pos_time);
-    }
-}
-
 pub fn update_turtle_model(
     mut commands: Commands,
     models: Res<TurtleModels>,
@@ -152,10 +98,10 @@ pub fn update_turtle_model(
 
 pub fn move_turtle(
     mut query: Query<(&mut TurtleInstance, &mut LerpTransform)>,
-    mut event: EventReader<S2CPackets>,
+    mut event: EventReader<S2CPacket>,
 ) {
     for msg in event.read() {
-        if let S2CPackets::MovedTurtle(e) = msg {
+        if let S2CPacket::MovedTurtle(e) = msg {
             query
                 .iter_mut()
                 .filter(|(t, _)| t.index == e.index)

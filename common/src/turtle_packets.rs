@@ -1,6 +1,5 @@
 use crate::{
-    turtle::{TurtleInventory, Maybe, MoveDirection, Orientation, TurtleIndexType},
-    Pos3,
+    extensions, turtle::{Maybe, MoveDirection, Orientation, TurtleIndexType, TurtleInventory}, Pos3
 };
 
 
@@ -14,7 +13,7 @@ pub struct SetupInfoData {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum T2SPackets {
-    Batch(Vec<T2SPackets>),
+    // Batch(Vec<T2SPackets>),
     SetupInfo(SetupInfoData),
     Moved {
         direction: MoveDirection,
@@ -22,9 +21,9 @@ pub enum T2SPackets {
     SetMaxFuel(i32),
     SetPos(Pos3),
     SetOrientation(Orientation),
-    WorldUpdate(String),
+    ChangeWorld(String),
     InventoryUpdate(Box<TurtleInventory>),
-    NameUpdate(String),
+    SetName(String),
     FuelUpdate(i32),
     Blocks {
         up: Maybe<String>,
@@ -34,11 +33,13 @@ pub enum T2SPackets {
     Executables(Vec<String>),
     Ping,
     StdOut(String),
+    ExtPacket(extensions::T2SPacketExtensions)
 }
 #[derive(serde::Serialize, serde::Deserialize)]
-pub enum S2TPackets {
+pub enum S2TPacket {
     RunLuaCode(String),
     GetSetupInfo,
     GetExecutables,
     StdIn(String),
+    ExtPacket(extensions::S2TPacketExtensions)
 }
