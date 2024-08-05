@@ -1,0 +1,14 @@
+[package]
+name = "trc_protocol_gen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.8", features = ["derive"] }
+color-eyre = "0.6.3"
+eyre.workspace = true
+kdl = "4.6.0"
+log.workspace = true
+pretty_env_logger.workspace = true
+serde.workspace = true
+

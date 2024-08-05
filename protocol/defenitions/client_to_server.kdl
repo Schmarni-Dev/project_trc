@@ -1,0 +1,31 @@
+struct "Pos3" {
+    x "u32"
+    y "u32"
+    z "u32"
+}
+struct "Quat" {
+    x "f32"
+    y "f32"
+    z "f32"
+    w "f32"
+}
+struct "NewQuat" "Quat"
+struct "Alive"
+enum "Live" {
+    Alive {
+        x "u32"
+        y "u32"
+        hellow_wowld "String"
+    }
+    Dying "f32"
+    Dead
+}
+enum "ComputerToServerPacket" {
+    Alive {
+        x "u32"
+        y "u32"
+        hellow_wowld "String"
+    }
+    StdOut "String"
+    Dead
+}
