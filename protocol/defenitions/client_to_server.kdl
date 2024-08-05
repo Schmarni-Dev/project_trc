@@ -21,11 +21,7 @@ enum "Live" {
     Dead
 }
 enum "ComputerToServerPacket" {
-    Alive {
-        x "u32"
-        y "u32"
-        hellow_wowld "String"
-    }
     StdOut "String"
-    Dead
+		Ping
+		Executables "String[]"
 }

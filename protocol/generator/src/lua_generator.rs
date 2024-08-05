@@ -91,5 +91,6 @@ fn type_to_lua_type(type_data: &Type) -> Cow<'static, str> {
         Type::Bool => "boolean".into(),
         Type::Custom(v) => v.to_string().into(),
         Type::Optional(v) => format!("{} | nil", type_to_lua_type(v)).into(),
+        Type::List(v) => format!("{}[]", type_to_lua_type(v)).into(),
     }
 }

@@ -42,6 +42,7 @@ pub enum Type {
     String,
     Bool,
     Custom(String),
+    List(Box<Type>),
     Optional(Box<Type>),
 }
 
@@ -83,8 +84,21 @@ impl FromStr for Type {
                 _ => unreachable!(),
             });
         }
+        if let Some(s) = s.strip_suffix("?[]") {
+            return Ok(Self::List(Box::new(Self::Optional(Box::new(
+                Self::from_str(s)?,
+            )))));
+        };
+        if let Some(s) = s.strip_suffix("[]?") {
+            return Ok(Self::Optional(Box::new(Self::List(Box::new(
+                Self::from_str(s)?,
+            )))));
+        };
         if let Some(s) = s.strip_suffix('?') {
             return Ok(Self::Optional(Box::new(Self::from_str(s)?)));
+        };
+        if let Some(s) = s.strip_suffix("[]") {
+            return Ok(Self::List(Box::new(Self::from_str(s)?)));
         };
         Ok(match s {
             "bool" => Self::Bool,

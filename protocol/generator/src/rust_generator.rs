@@ -93,5 +93,6 @@ fn type_to_rust_type(type_data: &Type) -> Cow<'static, str> {
         Type::Bool => "bool".into(),
         Type::Custom(v) => v.to_string().into(),
         Type::Optional(v) => format!("Option<{}>", type_to_rust_type(v)).into(),
+        Type::List(v) => format!("Vec<{}>", type_to_rust_type(v)).into(),
     }
 }
