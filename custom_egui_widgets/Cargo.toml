@@ -10,7 +10,7 @@ egui.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
-eframe = { version = "0.26.0", features = ["wayland"] }
+eframe = { version = "0.29.1", features = ["wayland"] }
 
 [[example]]
 name = "test"

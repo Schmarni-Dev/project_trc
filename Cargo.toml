@@ -29,14 +29,14 @@ futures = "0.3"
 bevy_egui = "0.26.0"
 egui_code_editor = "=0.2.5"
 pretty_env_logger = "0.5.0"
-tokio-tungstenite = "0.21.0"
-tungstenite = "0.21.0"
+tokio-tungstenite = "0.24.0"
+tungstenite = "0.24.0"
 tokio = { version = "1.36.0", features = ["full"] }
 gloo = "0.11.0"
 console_error_panic_hook = "0.1.7"
 wasm-bindgen-futures = "0.4.41"
 serde = { version = "1.0.196", features = ["derive"] }
-egui = "0.26.0"
+egui = "0.29.1"
 actually_usable_voxel_mesh_gen = { path = "./actually_usable_voxel_mesh_gen" }
 common = { path = "./common" }
 custom_egui_widgets = { path = "./custom_egui_widgets" }
@@ -50,13 +50,13 @@ axum = "0.7.5"
 rayon = "1.8.1"
 bevy_mod_raycast = "0.17"
 bevy_mod_picking = { version = "0.19", default-features = false }
-sqlx = { version = "0.7.4", features = [
+sqlx = { version = "0.8.2", features = [
 	"runtime-tokio",
 	"tls-rustls",
 	"sqlite",
 ] }
-tower-http = "0.5.2"
-derive_more = "0.99"
+tower-http = "0.6.1"
+derive_more = { version = "1.0", features = ["full"] }
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3

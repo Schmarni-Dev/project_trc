@@ -9,5 +9,5 @@ edition = "2021"
 # bevy = { workspace = true, default-features = false }
 bevy_ecs = "0.14"
 bevy_reflect = "0.14"
-derive_more = "0.99.17"
+derive_more = "1.0.0"
 serde.workspace = true
