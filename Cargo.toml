@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-	"client",
+	# "client",
 	"common",
 	"actually_usable_voxel_mesh_gen",
 	"server",
@@ -16,6 +16,7 @@ members = [
 # [profile.dev.package."*"]
 # opt-level = 3
 [workspace.dependencies]
+trc_protocol.path = "protocol"
 thiserror = "1.0.56"
 bevy = { version = "0.13.2", default-features = false }
 smooth-bevy-cameras = "0.11.0"

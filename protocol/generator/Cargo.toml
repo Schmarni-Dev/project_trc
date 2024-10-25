@@ -10,5 +10,4 @@ eyre.workspace = true
 kdl = "4.6.0"
 log.workspace = true
 pretty_env_logger.workspace = true
-serde.workspace = true
 

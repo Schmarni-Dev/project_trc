@@ -1,4 +1,4 @@
-use crate::turtle::MoveDirection;
+use crate::turtle::{BlockDirection, MoveDirection};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum RcT2SPacket {}
@@ -8,11 +8,11 @@ pub enum RcS2TPacket {
     Move(Vec<MoveDirection>),
     SelectSlot(u32),
     PlaceBlock {
-        dir: TurtleUpDown,
+        dir: BlockDirection,
         text: Option<String>,
     },
     BreakBlock {
-        dir: TurtleUpDown,
+        dir: BlockDirection,
     },
 }
 
@@ -34,19 +34,13 @@ pub enum RcC2SPacket {
     PlaceBlock {
         index: i32,
         world: String,
-        dir: TurtleUpDown,
+        dir: BlockDirection,
         text: Option<String>,
     },
     BreakBlock {
         index: i32,
         world: String,
-        dir: TurtleUpDown,
+        dir: BlockDirection,
     },
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
-pub enum TurtleUpDown {
-    Up,
-    Forward,
-    Down,
-}

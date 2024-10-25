@@ -1,8 +1,24 @@
 use std::{borrow::Cow, collections::HashMap, fs, io::Write, path::Path};
 
-use eyre::ContextCompat;
-
 use crate::types::{Document, Type, VarientType};
+
+pub fn generate_rust_mod_file(
+    output_dir: impl AsRef<Path>,
+    documents: &[Document],
+) -> eyre::Result<()> {
+    fs::create_dir_all(&output_dir)?;
+    let mut path = output_dir.as_ref().to_path_buf();
+    path.push("mod.rs");
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)?;
+    for name in documents.iter().map(|d| &d.name) {
+        file.write_all(format!("pub mod {};", name.replace('/', "::")).as_bytes())?;
+    }
+    Ok(())
+}
 
 pub fn generate_rust_file(
     output_dir: impl AsRef<Path>,
@@ -18,8 +34,17 @@ pub fn generate_rust_file(
         .truncate(true)
         .open(path)?;
     for u in document.uses.iter() {
-        let u_path = use_map.get(u).context("use not in use_map")?;
-        file.write_all(format!("use {};\n", u_path).as_bytes())?;
+        // let u_path = use_map.get(u).context("use not in use_map")?;
+        file.write_all(
+            format!(
+                "use {};\n",
+                u.strip_prefix('"')
+                    .unwrap_or(u)
+                    .strip_suffix('"')
+                    .unwrap_or(u)
+            )
+            .as_bytes(),
+        )?;
     }
 
     for struct_data in document.structs.iter() {
@@ -52,7 +77,9 @@ pub fn generate_rust_file(
         }
     }
     for enum_data in document.enums.iter() {
-        let mut string = format!("\npub enum {} {{\n", enum_data.name);
+        let mut string =
+            "\n#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]\n".to_string();
+        string += &format!("pub enum {} {{\n", enum_data.name);
         for varient in enum_data.varients.iter() {
             match &varient.varient_type {
                 VarientType::Struct(fields) => {

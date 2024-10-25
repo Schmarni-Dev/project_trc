@@ -5,6 +5,8 @@ use axum::{
     },
     response::Response,
 };
+use bevy_ecs::{component::Component, entity::Entity};
+use color_eyre::eyre::ContextCompat;
 use common::{
     client_packets::{C2SPacket, S2CPacket},
     extensions::C2SPacketExtensions,
@@ -17,26 +19,16 @@ use tokio::sync::RwLock;
 
 use crate::{
     session::{Session, SessionMap},
-    AppData,
+    AppState,
 };
 
-pub async fn client_ws_route(ws: WebSocketUpgrade, state: State<AppData>) -> Response {
+pub async fn client_ws_route(ws: WebSocketUpgrade, state: State<AppState>) -> Response {
     ws.on_upgrade(|s| handle_client_ws(s, state))
 }
 
-pub async fn handle_client_ws(socket: WebSocket, state: State<AppData>) {
-    let session = state.sessions.acquire_session().await;
+pub async fn handle_client_ws(socket: WebSocket, state: State<AppState>) {
     let (writer, mut reader) = socket.split();
-    state
-        .client_senders
-        .write()
-        .await
-        .insert(session, ClientWsSender(writer));
-    state
-        .client_current_world
-        .write()
-        .await
-        .insert(session, None);
+    let entity = state.write().await.spawn(ClientWsSender(writer)).id();
     while let Ok(msg) = reader.try_next().await {
         let state = state.clone();
         let Some(msg) = msg else {
@@ -49,7 +41,7 @@ pub async fn handle_client_ws(socket: WebSocket, state: State<AppData>) {
                     error!("unable to parse client packet: {}", text);
                     continue;
                 };
-                if let Err(err) = handle_packet(packet, &state, session).await {
+                if let Err(err) = handle_packet(packet, &state, entity).await {
                     error!("error while handling packet: {}", err);
                 }
             }
@@ -63,39 +55,54 @@ pub async fn handle_client_ws(socket: WebSocket, state: State<AppData>) {
         }
     }
     info!("Client disconnected!");
-    state.client_senders.write().await.remove(&session);
-    state.client_current_world.write().await.remove(&session);
+    // state.client_senders.write().await.remove(&session);
+    // state.client_current_world.write().await.remove(&session);
 }
+#[derive(Component)]
+pub struct ClientCurrentWorld(String);
 
 async fn handle_packet(
     packet: C2SPacket,
-    state: &State<AppData>,
-    session: Session,
+    state: &State<AppState>,
+    entity: Entity,
 ) -> color_eyre::Result<()> {
     use C2SPacket::ExtensionPacket as Ext;
     use C2SPacketExtensions::PositionTracking as PosT;
     match packet {
+        // Is this even needed?
         C2SPacket::SwitchWorld(new_world) => {
-            state
-                .client_current_world
-                .write()
-                .await
-                .insert(session, new_world.into());
+            if let Some(new_world) = new_world.into() {
+                state
+                    .write()
+                    .await
+                    .get_entity_mut(entity)
+                    .context("client entity invalid")?
+                    .insert(ClientCurrentWorld(new_world));
+            } else {
+                state
+                    .write()
+                    .await
+                    .get_entity_mut(entity)
+                    .context("client entity invalid")?
+                    .remove::<ClientCurrentWorld>();
+            }
         }
         C2SPacket::RequestTurtles => {
-            let curr_world_map = state.client_current_world.read().await;
-            let world = curr_world_map.get(&session).unwrap();
+            let mut ecs_world = state.write().await;
+            let world = ecs_world
+                .get::<ClientCurrentWorld>(entity)
+                .map(|v| v.0.clone());
 
-            if let Some(world) = world.as_ref() {
-                state
-                    .client_senders
-                    .send_packet(
-                        &session,
-                        &S2CPacket::SetTurtles(common::client_packets::SetTurtlesData {
+            if let Some(world) = world {
+                ecs_world
+                    .get_mut::<ClientWsSender>(entity)
+                    .context("no client ws sender!")?
+                    .send(&S2CPacket::SetTurtles(
+                        common::client_packets::SetTurtlesData {
                             turtles: Vec::new(),
-                            world: world.clone(),
-                        }),
-                    )
+                            world,
+                        },
+                    ))
                     .await;
             }
         }
@@ -123,12 +130,12 @@ async fn handle_packet(
     Ok(())
 }
 
-#[derive(Deref, DerefMut)]
+#[derive(Deref, DerefMut, Component)]
 pub struct ClientWsSender(SplitSink<WebSocket, Message>);
 
-pub(crate) trait ClientWsSenderLockExt {
-    async fn send_packet(&self, session: &Session, packet: &S2CPacket);
-}
+// pub(crate) trait ClientWsSenderLockExt {
+//     async fn send_packet(&self, session: &Session, packet: &S2CPacket);
+// }
 
 impl ClientWsSender {
     pub async fn send(&mut self, packet: &S2CPacket) {
@@ -139,13 +146,13 @@ impl ClientWsSender {
     }
 }
 
-impl ClientWsSenderLockExt for RwLock<SessionMap<ClientWsSender>> {
-    async fn send_packet(&self, session: &Session, packet: &S2CPacket) {
-        self.write()
-            .await
-            .get_mut(session)
-            .unwrap()
-            .send(packet)
-            .await;
-    }
-}
+// impl ClientWsSenderLockExt for RwLock<SessionMap<ClientWsSender>> {
+//     async fn send_packet(&self, session: &Session, packet: &S2CPacket) {
+//         self.write()
+//             .await
+//             .get_mut(session)
+//             .unwrap()
+//             .send(packet)
+//             .await;
+//     }
+// }

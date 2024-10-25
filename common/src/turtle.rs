@@ -1,12 +1,17 @@
 use std::{fmt::Display, str::FromStr};
 
-use bevy::{
-    prelude::{Deref, DerefMut},
-    reflect::Reflect,
-};
+use bevy_reflect::Reflect;
+use derive_more::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 
 use crate::Pos3;
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+pub enum BlockDirection {
+    Up,
+    Forward,
+    Down,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Reflect, Default)]
 pub enum Maybe<T> {
@@ -48,6 +53,7 @@ pub struct Inventory {
 pub struct TurtleInventory {
     pub selected_slot: u8,
     #[deref]
+    #[deref_mut]
     pub inv: [Maybe<Item>; 16],
 }
 impl IntoIterator for Inventory {

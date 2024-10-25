@@ -1,7 +1,17 @@
+use bevy_ecs::component::Component;
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 
 #[derive(
-    Default, serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Hash, Eq, PartialEq,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    Hash,
+    Eq,
+    PartialEq,
+    Component,
 )]
 pub struct Pos3 {
     pub x: i32,

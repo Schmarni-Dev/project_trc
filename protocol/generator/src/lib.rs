@@ -1,6 +1,5 @@
 pub mod rust_generator;
 pub mod types;
-pub mod generated;
 pub mod config;
 pub mod lua_generator;
 

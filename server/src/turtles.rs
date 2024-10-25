@@ -7,34 +7,51 @@ use axum::{
     },
     response::Response,
 };
-use color_eyre::eyre::OptionExt;
+use bevy_ecs::{component::Component, entity::Entity};
+use color_eyre::eyre::ContextCompat as _;
 use common::{
     turtle::{get_rotated_orientation, Orientation, TurnDir},
-    turtle_packets::{S2TPacket, SetupInfoData, T2SPackets},
+    turtle_packets::S2TPacket,
     world_data::{chunk_pos_to_chunk_key, get_chunk_containing_block},
-    Pos3,
+    ComputerType, Pos3,
 };
-use futures::{stream::SplitSink, Sink, SinkExt, StreamExt, TryStreamExt};
+use futures::{stream::SplitSink, SinkExt, StreamExt, TryStreamExt};
 use log::{error, info, warn};
-use tokio::sync::{RwLock, RwLockReadGuard};
+use sqlx::SqlitePool;
+use trc_protocol::computer_packets::{ComputerSetupToServerPacket, TurtleToServerPacket};
 
 use crate::{
-    session::{Session, SessionMap},
-    AppData,
+    computers::{self, ComputerIdent},
+    AppState,
 };
 
-pub async fn turtle_ws_route(ws: WebSocketUpgrade, state: State<AppData>) -> Response {
+pub async fn turtle_ws_route(ws: WebSocketUpgrade, state: State<AppState>) -> Response {
     ws.on_upgrade(|s| handle_turtle_ws(s, state))
 }
 
-pub async fn handle_turtle_ws(socket: WebSocket, state: State<AppData>) {
-    let session = state.sessions.acquire_session().await;
+pub async fn handle_turtle_ws(socket: WebSocket, state: State<AppState>) {
+    // let session = state.sessions.acquire_session().await;
     let (writer, mut reader) = socket.split();
-    state
-        .turtle_senders
+    let Some(Ok(Message::Text(msg))) = reader.next().await else {
+        error!("invalid first message from turtle");
+        return;
+    };
+    let Ok(setup): Result<ComputerSetupToServerPacket, _> = serde_json::from_str(&msg) else {
+        error!("invalid setup packet: {msg}");
+        return;
+    };
+    let entity = state
         .write()
         .await
-        .insert(session, TurtleWsSender(writer));
+        .spawn((
+            TurtleWsSender(writer),
+            ComputerType::Turtle,
+            ComputerIdent {
+                world: setup.world,
+                id: setup.id,
+            },
+        ))
+        .id();
     while let Ok(msg) = reader.try_next().await {
         let state = state.clone();
         let Some(msg) = msg else {
@@ -47,7 +64,7 @@ pub async fn handle_turtle_ws(socket: WebSocket, state: State<AppData>) {
                     error!("unable to parse turtle packet: {}", text);
                     continue;
                 };
-                if let Err(err) = handle_packet(packet, &state, session).await {
+                if let Err(err) = handle_packet(packet, &state, entity).await {
                     error!("error while handling packet: {}", err);
                 }
             }
@@ -61,69 +78,72 @@ pub async fn handle_turtle_ws(socket: WebSocket, state: State<AppData>) {
         }
     }
     info!("Turtle disconnected!");
-    state.turtle_senders.write().await.remove(&session);
-    state.turtle_i_w_map.write().await.remove(&session);
+    state.write().await.despawn(entity);
 }
 
 async fn handle_packet(
-    packet: T2SPackets,
-    state: &State<AppData>,
-    session: Session,
+    packet: TurtleToServerPacket,
+    state: &State<AppState>,
+    entity: Entity,
 ) -> color_eyre::Result<()> {
+    use TurtleToServerPacket as T2S;
     match packet {
-        T2SPackets::SetupInfo(SetupInfoData {
-            facing,
-            position,
-            index,
-            world,
-        }) => {
-            let exits = sqlx::query!(
-                "SELECT TRUE as stored FROM turtles WHERE id = ? AND world = ?;",
-                index,
-                world
-            )
-            .fetch_one(&state.db)
-            .await
-            .unwrap();
-            let facing_str = facing.to_string();
-            let pos_str = position.to_string_repr();
-            if exits.stored != 0 {
-                sqlx::query!(
-                    "UPDATE turtles SET orientation = ?, position = ? WHERE id = ? AND world = ?;",
-                    facing_str,
-                    pos_str,
-                    index,
-                    world
-                )
-                .execute(&state.db)
-                .await
-                .unwrap();
-            } else {
-                sqlx::query!(
-                    r#"INSERT INTO turtles 
-                        (id, name, position, orientation, fuel, max_fuel, world) 
-                        VALUES (?,"",?,?,0,0,?);"#,
-                    index,
-                    pos_str,
-                    facing_str,
-                    world
-                )
-                .execute(&state.db)
-                .await
-                .unwrap();
-            }
-            state
-                .turtle_i_w_map
-                .write()
-                .await
-                .insert(session, (index, world));
-        }
-        T2SPackets::Moved { direction } => {
-            let t = state.turtle_i_w_map.get(&session).await?;
+        // T2SPackets::SetupInfo(SetupInfoData {
+        //     facing,
+        //     position,
+        //     index,
+        //     world,
+        // }) => {
+        //     let exits = sqlx::query!(
+        //         "SELECT TRUE as stored FROM turtles WHERE id = ? AND world = ?;",
+        //         index,
+        //         world
+        //     )
+        //     .fetch_one(&state.db)
+        //     .await
+        //     .unwrap();
+        //     let facing_str = facing.to_string();
+        //     let pos_str = position.to_string_repr();
+        //     if exits.stored != 0 {
+        //         sqlx::query!(
+        //             "UPDATE turtles SET orientation = ?, position = ? WHERE id = ? AND world = ?;",
+        //             facing_str,
+        //             pos_str,
+        //             index,
+        //             world
+        //         )
+        //         .execute(&state.db)
+        //         .await
+        //         .unwrap();
+        //     } else {
+        //         sqlx::query!(
+        //             r#"INSERT INTO turtles
+        //                 (id, name, position, orientation, fuel, max_fuel, world)
+        //                 VALUES (?,"",?,?,0,0,?);"#,
+        //             index,
+        //             pos_str,
+        //             facing_str,
+        //             world
+        //         )
+        //         .execute(&state.db)
+        //         .await
+        //         .unwrap();
+        //     }
+        //     state
+        //         .turtle_i_w_map
+        //         .write()
+        //         .await
+        //         .insert(session, (index, world));
+        // }
+        T2S::Moved(direction) => {
+            let world = state.read().await;
+            let ident = world
+                .get::<ComputerIdent>(entity)
+                .context("can't get ident for computer")?;
             let turtle_data = sqlx::query!(
                 "SELECT position, orientation FROM turtles WHERE id = ? AND world = ?;",
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .fetch_one(&state.db)
             .await
@@ -150,105 +170,102 @@ async fn handle_packet(
                 "UPDATE turtles SET position = ?, orientation = ? WHERE id = ? and world = ?;",
                 new_pos_str,
                 new_orient_str,
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .execute(&state.db)
             .await
             .unwrap();
         }
-        T2SPackets::SetMaxFuel(max) => {
-            let t = state.turtle_i_w_map.get(&session).await?;
+        T2S::SetMaxFuel(max) => {
+            let world = state.read().await;
+            let ident = world
+                .get::<ComputerIdent>(entity)
+                .context("can't get ident for computer")?;
             sqlx::query!(
                 "UPDATE turtles SET max_fuel = ? WHERE id = ? AND world = ?;",
                 max,
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .execute(&state.db)
             .await
             .unwrap();
         }
-        T2SPackets::SetPos(new_pos) => {
-            let t = state.turtle_i_w_map.get(&session).await?;
+        T2S::SetPos(new_pos) => {
+            let world = state.read().await;
+            let ident = world
+                .get::<ComputerIdent>(entity)
+                .context("can't get ident for computer")?;
             let pos_str = new_pos.to_string_repr();
             sqlx::query!(
                 "UPDATE turtles SET position = ? WHERE id = ? AND world = ?;",
                 pos_str,
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .execute(&state.db)
             .await
             .unwrap();
         }
-        T2SPackets::SetOrientation(orient) => {
-            let t = state.turtle_i_w_map.get(&session).await?;
+        T2S::SetOrientation(orient) => {
+            let world = state.read().await;
+            let ident = world
+                .get::<ComputerIdent>(entity)
+                .context("can't get ident for computer")?;
             let orient_str = orient.to_string();
             sqlx::query!(
                 "UPDATE turtles SET orientation = ? WHERE id = ? AND world = ?;",
                 orient_str,
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .execute(&state.db)
             .await
             .unwrap();
         }
-        T2SPackets::ChangeWorld(new_world) => {
-            let t = state.turtle_i_w_map.get(&session).await?;
-            sqlx::query!(
-                "UPDATE turtles SET world = ? WHERE id = ? AND world = ?;",
-                new_world,
-                t.0,
-                t.1
-            )
-            .execute(&state.db)
-            .await
-            .unwrap();
-            drop(t);
-            state
-                .turtle_i_w_map
-                .write()
-                .await
-                .get_mut(&session)
-                .ok_or_eyre("no data for session in index_world_map")?
-                .1 = new_world;
-        }
-        T2SPackets::InventoryUpdate(_) => {}
-        T2SPackets::SetName(name) => {
-            let t = state.turtle_i_w_map.get(&session).await?;
-            sqlx::query!(
-                "UPDATE turtles SET name = ? WHERE id = ? AND world = ?;",
-                name,
-                t.0,
-                t.1
-            )
-            .execute(&state.db)
-            .await
-            .unwrap();
-        }
-        T2SPackets::FuelUpdate(fuel) => {
-            let t = state.turtle_i_w_map.get(&session).await?;
+        T2S::UpdateSlotContents { slot, contents } => {}
+        T2S::UpdateFuel(fuel) => {
+            let world = state.read().await;
+            let ident = world
+                .get::<ComputerIdent>(entity)
+                .context("can't get ident for computer")?;
             sqlx::query!(
                 "UPDATE turtles SET fuel = ? WHERE id = ? AND world = ?;",
                 fuel,
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .execute(&state.db)
             .await
             .unwrap();
         }
-        T2SPackets::Blocks { up, down, front } => {
-            let t = state.turtle_i_w_map.get(&session).await?;
-            let up: Option<String> = up.into();
-            let down: Option<String> = down.into();
-            let front: Option<String> = front.into();
+        T2S::UpdateBlocks { up, down, front } => {
+            async fn write_block(pos: Pos3, ident: Option<String>, world: &str, db: &SqlitePool) {
+                let chunk_key = chunk_pos_to_chunk_key(&get_chunk_containing_block(&pos));
+                let pos_str = pos.to_string_repr();
+                let is_air = ident.is_none();
+                let ident = ident.unwrap_or_default();
+                sqlx::query!(
+                "INSERT OR REPLACE INTO blocks (chunk_key,is_air,id,world,world_pos) VALUES (?,?,?,?,?);",
+                chunk_key,
+                is_air,
+                ident,
+                world,
+                pos_str,
+            )
+            .execute(db)
+            .await
+            .unwrap();
+            }
+            let world = state.read().await;
+            let ident = world
+                .get::<ComputerIdent>(entity)
+                .context("can't get ident for computer")?;
             let turtle_data = sqlx::query!(
                 "SELECT position, orientation FROM turtles WHERE id = ? AND world = ?;",
-                t.0,
-                t.1
+                ident.id,
+                ident.world
             )
             .fetch_one(&state.db)
             .await
@@ -258,79 +275,36 @@ async fn handle_packet(
             let pos_up = pos + Pos3::Y;
             let pos_down = pos + Pos3::NEG_Y;
             let pos_front = pos + orient.get_forward_vec();
-            let chunk_key_up = chunk_pos_to_chunk_key(&get_chunk_containing_block(&pos_up));
-            let chunk_key_down = chunk_pos_to_chunk_key(&get_chunk_containing_block(&pos_down));
-            let chunk_key_front = chunk_pos_to_chunk_key(&get_chunk_containing_block(&pos_front));
-            let pos_str_up = pos_up.to_string_repr();
-            let pos_str_down = pos_down.to_string_repr();
-            let pos_str_front = pos_front.to_string_repr();
-            let is_air_up = up.is_none();
-            let is_air_down = down.is_none();
-            let is_air_front = front.is_none();
-            let ident_up = up.unwrap_or_default();
-            let ident_down = down.unwrap_or_default();
-            let ident_front = front.unwrap_or_default();
-            sqlx::query!(
-                "INSERT OR REPLACE INTO blocks (chunk_key,is_air,id,world,world_pos) VALUES (?,?,?,?,?);",
-                chunk_key_up,
-                is_air_up,
-                ident_up,
-                t.1,
-                pos_str_up,
-            )
-            .execute(&state.db)
-            .await
-            .unwrap();
-            sqlx::query!(
-                "INSERT OR REPLACE INTO blocks (chunk_key,is_air,id,world,world_pos) VALUES (?,?,?,?,?);",
-                chunk_key_down,
-                is_air_down,
-                ident_down,
-                t.1,
-                pos_str_down,
-            )
-            .execute(&state.db)
-            .await
-            .unwrap();
-            sqlx::query!(
-                "INSERT OR REPLACE INTO blocks (chunk_key,is_air,id,world,world_pos) VALUES (?,?,?,?,?);",
-                chunk_key_front,
-                is_air_front,
-                ident_front,
-                t.1,
-                pos_str_front,
-            )
-            .execute(&state.db)
-            .await
-            .unwrap();
+            write_block(pos_up, up, &ident.world, &state.db).await;
+            write_block(pos_down, down, &ident.world, &state.db).await;
+            write_block(pos_front, front, &ident.world, &state.db).await;
         }
-        T2SPackets::Executables(_) => {}
-        T2SPackets::Ping => {}
-        T2SPackets::StdOut(_) => {}
-        T2SPackets::ExtPacket(_) => {}
+        T2S::ComputerToServer(packet) => {
+            return computers::handle_computer_packet(packet, state, entity).await
+        }
     };
     Ok(())
 }
 
 use derive_more::{Deref, DerefMut};
 
-#[derive(Deref, DerefMut)]
+#[derive(Deref, DerefMut, Component)]
 pub struct TurtleWsSender(SplitSink<WebSocket, Message>);
 
-pub(crate) trait TurtleWsSenderLockExt {
-    async fn send_packet(&self, session: &Session, packet: &S2TPacket);
-}
-
-impl TurtleWsSenderLockExt for RwLock<SessionMap<TurtleWsSender>> {
-    async fn send_packet(&self, session: &Session, packet: &S2TPacket) {
-        self.write()
-            .await
-            .get_mut(session)
-            .unwrap()
-            .send(packet)
-            .await;
-    }
-}
+// pub(crate) trait TurtleWsSenderLockExt {
+//     async fn send_packet(&self, session: &Session, packet: &S2TPacket);
+// }
+//
+// impl TurtleWsSenderLockExt for RwLock<SessionMap<TurtleWsSender>> {
+//     async fn send_packet(&self, session: &Session, packet: &S2TPacket) {
+//         self.write()
+//             .await
+//             .get_mut(session)
+//             .unwrap()
+//             .send(packet)
+//             .await;
+//     }
+// }
 
 impl TurtleWsSender {
     pub async fn send(&mut self, packet: &S2TPacket) {
@@ -341,22 +315,22 @@ impl TurtleWsSender {
     }
 }
 
-trait IndexWorldMapExt {
-    async fn get<'a>(
-        &'a self,
-        session: &Session,
-    ) -> color_eyre::Result<RwLockReadGuard<'a, (i32, String)>>;
-}
-impl IndexWorldMapExt for RwLock<SessionMap<(i32, String)>> {
-    async fn get<'a>(
-        &'a self,
-        session: &Session,
-    ) -> color_eyre::Result<RwLockReadGuard<'a, (i32, String)>> {
-        tokio::sync::RwLockReadGuard::<'_, SessionMap<(i32, std::string::String)>>::try_map(
-            self.read().await,
-            |w| w.get(session),
-        )
-        .ok()
-        .ok_or_eyre("Session not in turtle_index_world_map!")
-    }
-}
+// trait IndexWorldMapExt {
+//     async fn get<'a>(
+//         &'a self,
+//         session: &Session,
+//     ) -> color_eyre::Result<RwLockReadGuard<'a, (i32, String)>>;
+// }
+// impl IndexWorldMapExt for RwLock<SessionMap<(i32, String)>> {
+//     async fn get<'a>(
+//         &'a self,
+//         session: &Session,
+//     ) -> color_eyre::Result<RwLockReadGuard<'a, (i32, String)>> {
+//         tokio::sync::RwLockReadGuard::<'_, SessionMap<(i32, std::string::String)>>::try_map(
+//             self.read().await,
+//             |w| w.get(session),
+//         )
+//         .ok()
+//         .ok_or_eyre("Session not in turtle_index_world_map!")
+//     }
+// }

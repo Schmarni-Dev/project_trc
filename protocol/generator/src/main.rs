@@ -66,22 +66,31 @@ fn main() {
             }
         }
         Command::Generate => {
-            for path in RecursiveDirIter::new("protocol/defenitions") {
-                let doc = trc_protocol_gen::parse_kdl_file(path).unwrap();
+            let docs = RecursiveDirIter::new("protocol/defenitions")
+                .map(|path| trc_protocol_gen::parse_kdl_file(path).unwrap())
+                .collect::<Vec<_>>();
+            // Should gate this behind flag
+            fs::remove_dir_all("protocol/src/generated").unwrap();
+            fs::remove_dir_all("protocol/lua/generated").unwrap();
+            for doc in &docs {
                 trc_protocol_gen::rust_generator::generate_rust_file(
                     "protocol/src/generated",
-                    &doc,
+                    doc,
                     &HashMap::new(),
                 )
                 .unwrap();
 
                 trc_protocol_gen::lua_generator::generate_rust_file(
                     "protocol/lua/generated",
-                    &doc,
+                    doc,
                     &HashMap::new(),
                 )
                 .unwrap()
             }
+            trc_protocol_gen::rust_generator::generate_rust_mod_file(
+                "protocol/src/generated",
+                &docs,
+            ).unwrap();
         }
     }
 }

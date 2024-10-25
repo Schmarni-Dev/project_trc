@@ -1,14 +1,14 @@
-use bevy::prelude::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut};
 
 use crate::{
-    extensions::{self, C2SPacketExtensions},
+    extensions::C2SPacketExtensions,
     turtle::{self, Maybe, Turtle, TurtleInventory},
     world_data::{Block, World},
     Pos3,
 };
 
 // Needed: start executable on turtle
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy_ecs::event::Event)]
 pub enum C2SPacket {
     SwitchWorld(Maybe<String>),
     RequestTurtles,
@@ -45,12 +45,13 @@ pub struct UpdateTurtleData<T> {
 pub struct SetTurtlesData {
     pub turtles: Vec<Turtle>,
     #[deref]
+    #[deref_mut]
     pub world: String,
 }
 
 // Needed: turtle requesting input from client(might need to somehow sync that? or just first come
 // first serve)
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy::ecs::event::Event)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, bevy_ecs::event::Event)]
 pub enum S2CPacket {
     MovedTurtle(MovedTurtleData),
     TurtleInventoryUpdate(UpdateTurtleData<Box<TurtleInventory>>),
