@@ -1,0 +1,52 @@
+use "crate::generated::types::Item"
+use "common::Pos3"
+use "common::turtle::MoveDirection"
+use "common::turtle::Orientation"
+use "common::turtle::BlockDirection"
+// TODO: add dimension?
+struct "ComputerSetupToServerPacket" {
+    world "String"
+    id "i32"
+}
+enum "TurtleToServerPacket" {
+    SetMaxFuel "i32"
+    SetPos "Pos3"
+    SetOrientation "Orientation"
+    Moved "MoveDirection"
+    UpdateFuel "i32"
+    UpdateBlocks {
+        up "String?"
+        down "String?"
+        front "String?"
+    }
+    UpdateSlotContents {
+        slot "u8"
+        contents "Item?"
+    }
+    ComputerToServer "ComputerToServerPacket"
+}
+enum "ServerToTurtlePacket" {
+    Move "MoveDirection[]"
+    SelectSlot "u8"
+    PlaceBlock "BlockDirection"
+    PlaceBlockWithText {
+        dir "BlockDirection"
+        text "String"
+    }
+}
+// Should Position and Orientation be a turtle/pocket computer specific thing? maybe make position a common thing?
+enum "ComputerToServerPacket" {
+    // probably needs to be changed to data richer packets
+    StdOut "String"
+    Executables "String[]"
+    UpdateName "String"
+    ChangeWorld "String"
+    Ping
+}
+enum "ServerToComputerPacket" {
+    // might be bad security wise
+    RunLuaCode "String"
+    GetExecutables
+    // probably needs to be changed to data richer packets
+    StdIn "String"
+}

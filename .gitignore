@@ -1,5 +1,6 @@
 **/target
-server/db.db
 wasm_output
-world.db
+dbs
+server_old
+.env
 **/dist

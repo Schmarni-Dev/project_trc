@@ -1,0 +1,42 @@
+use "common::turtle::MoveDirection"
+use "common::turtle::BlockDirection"
+use "common::DeviceId"
+enum "ClientToServerPacket" {
+    SwitchWorld "String?"
+    RequestTurtles
+    RequestWorld
+    SendLuaToTurtle {
+        id "DeviceId"
+        code "String"
+    }
+    StdInForTurtle {
+        id "DeviceId"
+        value "String"
+    }
+    RcMoveTurtle {
+        id "DeviceId"
+        direction "MoveDirection"
+    }
+    RcPlaceBlock {
+        id "DeviceId"
+        dir "BlockDirection"
+    }
+    RcPlaceBlockWithText {
+        id "DeviceId"
+        dir "BlockDirection"
+        text "String"
+    }
+    RcBreakBlock {
+        id "DeviceId"
+        dir "BlockDirection"
+    }
+    RcSelectSlotTurtle {
+        id "DeviceId"
+        slot "u8"
+    }
+}
+enum "ServerToClientPacket" {
+    TurtleMoved {
+        id "DeviceId"
+    }
+}

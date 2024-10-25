@@ -1,0 +1,6 @@
+struct "Item" {
+    amount "u8"
+    max_stack_size "u8"
+    item_id "String"
+    item_name "String"
+}
